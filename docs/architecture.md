@@ -12,8 +12,13 @@ points inward from both sides.
 
 ### Domain
 
-Plain Swift structs, use cases, and repository protocols. Imports Foundation and
+Plain Swift structs, use cases, and the protocols Domain declares for whatever
+lives outside it — repositories, evidence file storage. Imports Foundation and
 nothing else.
+
+Those protocols are *ports*, not repositories in general. `EvidenceFileStore` is
+not a repository by any reading, and calling the folder `Repositories/` made the
+file store look misplaced when it was not. `Ports/` covers both.
 
 If Domain ever imports `CoreData`, `SwiftUI`, or `URLSession`, the boundary has
 been broken.
@@ -45,38 +50,77 @@ It costs mapping code, so it needs a reason. Three:
 ## Folder layout
 
 ```
-FieldAssessment/
-  Domain/
-    Entities/
-      Assessment.swift
-      AssessmentStatus.swift
-      Evidence.swift
-      EvidenceType.swift
-      Operation.swift
-    UseCases/
-      CreateAssessment.swift
-      UpdateAssessment.swift
-      AddEvidence.swift
-      CompleteAssessment.swift
-    Repositories/
-      AssessmentRepository.swift
-      OperationRepository.swift
-  Data/
-    Persistence/
-      Model.xcdatamodeld
-      CoreDataAssessmentRepository.swift
-      Mappers/
-    Network/
-    Files/
-  Presentation/
+FieldAssessmentCore/          <- Swift package: Domain + Data
+  Package.swift
+  Sources/
+    Domain/
+      Entities/
+        Assessment.swift
+        AssessmentStatus.swift
+        CapturedFile.swift
+        Evidence.swift
+        EvidenceType.swift
+        Operation.swift
+      UseCases/
+        CreateAssessment.swift
+        UpdateAssessment.swift
+        AddEvidence.swift
+        CompleteAssessment.swift
+      Ports/
+        AssessmentRepository.swift
+        EvidenceFileStore.swift
+        OperationRepository.swift
+    Data/
+      Persistence/
+        Model.xcdatamodeld
+        CoreDataAssessmentRepository.swift
+        Mappers/
+      Network/
+      Files/
+  Tests/
+    DomainTests/
+    DataTests/
+
+Features/                     <- Swift package: Presentation
+  Sources/Presentation/
     AssessmentList/
     AssessmentDetail/
     Debug/
-FieldAssessmentTests/
+
+App/
+  FieldAssessment.xcodeproj   <- thin shell, and the composition root
 ```
 
+## Why the package boundary sits where it does
+
+Presentation is a separate package from Core, and that is load-bearing rather
+than tidy. Swift's `package` access level reaches every module in the same
+package — so with Domain, Data and Presentation as three targets of one package,
+`package` would grant Presentation everything Data can see, and the boundary
+would exist only as a naming convention.
+
+Splitting Core from Features makes the compiler enforce it. `Assessment` shows
+what that buys:
+
+- creation is `internal` — the use case is the only way in, even from Data;
+- reconstitution is `package` — Data maps rows back through it, Presentation
+  cannot reach it and cannot fabricate a `completed` assessment.
+
+Adding a `Presentation` target inside `FieldAssessmentCore` would silently undo
+both.
+
+Since Presentation depends on Domain and not on Data, nothing but the app target
+imports both. That makes the thin Xcode shell the composition root by
+construction: it builds the Core Data repository and the evidence file store,
+and injects them into the use cases.
+
+One thing the split does *not* buy: Domain can still `import CoreData` or
+`import SwiftUI`, because those ship in the SDK and need no declared dependency.
+That rule is held by lint, not by the compiler.
+
 `Operation.swift` and `OperationRepository.swift` do not exist until Block 2.
-`Debug/` is the queue inspection screen — see below.
+Neither does `Data/`. `Features/` and `App/` are created when there is a screen
+to put in them. `Debug/` is the queue inspection screen — see below.
 
 ## Concurrency
 

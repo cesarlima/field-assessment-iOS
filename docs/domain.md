@@ -22,6 +22,7 @@ A single inspection performed by one inspector at one location.
 |---|---|---|
 | id | yes | Identity. Created on the device, offline, at the moment of creation. |
 | status | yes | `open` or `completed`. |
+| title | no | Short label the inspector gives the inspection. |
 | location | to complete | Where the inspection happened. |
 | inspector | to complete | Who performed it. |
 | notes | no | Free text. |
@@ -125,6 +126,6 @@ Stated as choices, not gaps.
   assigning work, and no server-to-client sync of assessment data.
 - **No conflict handling.** One inspector, one device, one owner per record.
   Nothing else writes to an assessment, so there is nothing to reconcile.
-- **No questionnaire.** Location, inspector, notes and evidence are the whole
-  form. The domain stays small on purpose.
+- **No questionnaire.** Title, location, inspector, notes and evidence are the
+  whole form. The domain stays small on purpose.
 - **No users, roles or permissions.**

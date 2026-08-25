@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Assessment: Sendable {
+public struct Assessment: Sendable, Equatable {
     public let id: UUID
     public let title: String?
     public let notes: String?
@@ -17,18 +17,24 @@ public struct Assessment: Sendable {
     public let inspector: String?
     public let status: AssessmentStatus
     public let evidences: [Evidence]
-    
+
     /// Starts a new assessment on the device.
     ///
     /// The status is not a parameter: an assessment always starts `open` (R1),
     /// and only the completion operation may move it (R3).
-    init(title: String? = nil,
-         notes: String? = nil,
-         location: String? = nil,
-         inspector: String? = nil,
-         evidences: [Evidence] = [],
+    ///
+    /// The id is passed in rather than generated here because a first capture
+    /// has to stamp its `Evidence.assessmentId` before this value exists. The
+    /// use case owns that ordering; `internal` keeps the decision inside the
+    /// module, so nothing outside can mint an assessment at all.
+    init(id: UUID,
+         title: String?,
+         notes: String?,
+         location: String?,
+         inspector: String?,
+         evidences: [Evidence],
          now: Date) {
-        self.id = UUID()
+        self.id = id
         self.title = title
         self.notes = notes
         self.location = location
@@ -38,7 +44,7 @@ public struct Assessment: Sendable {
         self.status = .open
         self.evidences = evidences
     }
-    
+
     /// Rebuilds an assessment that already exists in storage.
     ///
     /// Only the Data layer calls this. It applies no rule and validates

@@ -179,6 +179,46 @@ server stays small on purpose.
 
 ---
 
+## 15. The evidence file is filed before its record is written
+
+A capture produces two writes: the media file into the evidence directory, and
+the row that points at it. No transaction spans the filesystem and Core Data, so
+one of them lands first. The file does.
+
+**Why.** One of the two crash windows has to exist, and they are not equally
+bad. File first leaves an orphan file — garbage, identifiable, deletable. Record
+first leaves a row pointing at a file that does not exist, which in this domain
+is field evidence the inspector believes was captured and cannot be recovered.
+The asymmetry decides it.
+
+The file is named after the evidence id, so an orphan identifies itself: the
+sweep is "is there a row with this UUID?", with no auxiliary index and no
+scanning of stored file names.
+
+**Cost.** R8 says walking away leaves nothing behind, and an interrupted capture
+does leave the orphan file. Holding R8 literally needs a sweep at launch that
+deletes files in the evidence directory with no matching row. Not built yet, and
+tracked as known debt rather than discovered later.
+
+---
+
+## 16. Creation and the first input are one write
+
+An assessment is not created empty and then filled. `CreateAssessment` takes the
+first input — text or a capture — and writes the record with it, in one call.
+
+**Why.** The alternative is create-then-add, which is two transactions with a
+gap. The app dying in that gap leaves exactly the empty assessment R8 forbids.
+In a project whose subject is termination mid-operation, introducing a two-step
+create would be building the bug on purpose.
+
+**Cost.** Two `execute` overloads instead of one, and Presentation carries an
+`assessmentId: UUID?` to know whether the next input creates or updates. That
+branch is real — a fresh screen and an existing draft are genuinely different —
+so naming it beats hiding it behind an upsert.
+
+---
+
 ## Designed but not built: chunked upload
 
 Recorded because the design is the deliverable, whether or not the code follows.

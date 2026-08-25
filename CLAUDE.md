@@ -8,6 +8,32 @@ and the app is terminated halfway through synchronization?**
 
 Every decision should be judged against that.
 
+## The rule above the rules
+
+The immutable goal is the finished software: clean, testable, reliable, easy to
+understand, easy to maintain, and working. Everything else in this file and in
+`docs/` is the current best hypothesis about how to get there — direction, not
+definition.
+
+When a documented rule works against that goal, say so. Raise the point every
+time; the call is the owner's, never the assistant's. Silently following a rule
+into a worse product is the one failure that is not acceptable.
+
+Two kinds of rule, treated differently:
+
+- **Constraints imposed by reality** are not up for negotiation. Background
+  `URLSession` does not accept `Data`. The app container UUID changes between
+  installs. Arguing with these does not improve the design, it breaks the app.
+- **Design choices** are open. Push-only sync, drafts staying local, the field
+  list in `docs/domain.md`, the order of the blocks — all decided with the
+  information available at the time. If the code shows one of them costing more
+  than it returns, that is worth saying out loud.
+
+Changing a rule means changing the document that states it, in the same commit,
+with the reason. Documentation describing a system that no longer exists is
+worse than no documentation, and "easy to understand and maintain" is the first
+thing lost when the two drift apart. `docs/decisions.md` is the log for why.
+
 ## Stack
 
 - SwiftUI
