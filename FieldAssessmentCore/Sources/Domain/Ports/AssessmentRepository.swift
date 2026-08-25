@@ -9,6 +9,14 @@ import Foundation
 
 public enum AssessmentRepositoryError: Error, Equatable, Sendable {
     case notFound(UUID)
+
+    /// The record moved on between being read and being written. Nothing was
+    /// written (R16).
+    ///
+    /// `expected` and `found` are carried so a failure can be diagnosed rather
+    /// than guessed at — without them a test can only assert that something
+    /// went wrong.
+    case staleWrite(id: UUID, expected: Int, found: Int)
 }
 
 public protocol AssessmentRepository: Sendable {
@@ -19,11 +27,20 @@ public protocol AssessmentRepository: Sendable {
     /// R8 forbids.
     func insert(_ assessment: Assessment) async throws
 
-    /// Overwrites an existing assessment.
+    /// Writes an existing assessment, if nothing else wrote first.
     ///
-    /// Separate from `insert` on purpose. An upsert here would silently
-    /// recreate a row that something else had removed, and would hide which of
-    /// the two things actually happened.
+    /// Compare-and-set: the write lands only when the stored version is
+    /// exactly `assessment.version - 1`, and stores `assessment.version`.
+    /// Otherwise it throws `staleWrite` and changes nothing.
+    ///
+    /// A last-writer-wins overwrite would be lossy by construction here. Every
+    /// caller reads, computes, and writes back the whole aggregate, so without
+    /// this check a debounced note flushed during a capture — or a completion
+    /// landing mid-write — would be silently reverted.
+    ///
+    /// Separate from `insert` on purpose. An upsert would silently recreate a
+    /// row that something else had removed, and would hide which of the two
+    /// actually happened.
     ///
     /// Throws `notFound` when no record carries this id.
     func update(_ assessment: Assessment) async throws

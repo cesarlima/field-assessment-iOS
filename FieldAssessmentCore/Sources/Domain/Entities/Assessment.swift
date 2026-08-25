@@ -9,6 +9,12 @@ import Foundation
 
 public struct Assessment: Sendable, Equatable {
     public let id: UUID
+
+    /// Optimistic concurrency token. A value carries the version it *will* be
+    /// once written, so a write says which predecessor it expects without the
+    /// caller having to pass it separately (R16).
+    public let version: Int
+
     public let title: String?
     public let notes: String?
     public let location: String?
@@ -22,6 +28,7 @@ public struct Assessment: Sendable, Equatable {
     /// through here, so there is a single definition of what an assessment is
     /// made of.
     private init(id: UUID,
+                 version: Int,
                  title: String?,
                  notes: String?,
                  location: String?,
@@ -31,6 +38,7 @@ public struct Assessment: Sendable, Equatable {
                  status: AssessmentStatus,
                  evidences: [Evidence]) {
         self.id = id
+        self.version = version
         self.title = title
         self.notes = notes
         self.location = location
@@ -58,6 +66,7 @@ public struct Assessment: Sendable, Equatable {
          evidences: [Evidence],
          now: Date) {
         self.init(id: id,
+                  version: 1,
                   title: normalized(title),
                   notes: normalized(notes),
                   location: normalized(location),
@@ -73,6 +82,7 @@ public struct Assessment: Sendable, Equatable {
     /// Only the Data layer calls this. It applies no rule and validates
     /// nothing — the record was already validated when it was written.
     package init(reconstituting id: UUID,
+                 version: Int,
                  title: String?,
                  notes: String?,
                  location: String?,
@@ -82,6 +92,7 @@ public struct Assessment: Sendable, Equatable {
                  status: AssessmentStatus,
                  evidences: [Evidence]) {
         self.init(id: id,
+                  version: version,
                   title: title,
                   notes: notes,
                   location: location,
@@ -136,6 +147,7 @@ extension Assessment {
         else { return self }
 
         return Assessment(id: id,
+                          version: version + 1,
                           title: title,
                           notes: notes,
                           location: location,
@@ -161,6 +173,7 @@ extension Assessment {
         }
 
         return Assessment(id: id,
+                          version: version + 1,
                           title: title,
                           notes: notes,
                           location: location,

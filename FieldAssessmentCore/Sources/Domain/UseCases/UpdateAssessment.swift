@@ -36,12 +36,9 @@ public struct UpdateAssessment: Sendable {
     /// `updatedAt` or produce a pointless transaction.
     @discardableResult
     public func execute(id: UUID, _ edits: [AssessmentEdit]) async throws -> Assessment {
-        let current = try await repository.fetch(id: id)
-        let updated = try current.applying(edits, at: now())
-
-        guard updated != current else { return current }
-
-        try await repository.update(updated)
-        return updated
+        let now = self.now
+        return try await commit(id, in: repository) { current in
+            try current.applying(edits, at: now())
+        }
     }
 }

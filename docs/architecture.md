@@ -73,6 +73,7 @@ FieldAssessmentCore/          <- Swift package: Domain + Data
         EvidenceFileStore.swift
         OperationRepository.swift
       Support/
+        Commit.swift
         Normalization.swift
     Data/
       Persistence/

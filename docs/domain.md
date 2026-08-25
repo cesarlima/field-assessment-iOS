@@ -21,6 +21,7 @@ A single inspection performed by one inspector at one location.
 | Field | Required | Meaning |
 |---|---|---|
 | id | yes | Identity. Created on the device, offline, at the moment of creation. |
+| version | yes | Which revision of the record this is. Guards against stale writes. |
 | status | yes | `open` or `completed`. |
 | title | no | Short label the inspector gives the inspection. |
 | location | to complete | Where the inspection happened. |
@@ -125,14 +126,26 @@ The network can lose a response after the server has already accepted the work.
 The app cannot tell that apart from a genuine failure, so it will retry. The
 system has to absorb that without duplicating anything.
 
+**R16. A write based on a stale read is refused, never applied in silence.**
+The app writes to an assessment from more than one place at once — autosave
+flushes while a capture is being filed, a capture finishes while an edit is in
+flight. Whichever gets there second must not carry the first one away with it.
+Losing an inspector's note or a captured video to a race is the same as losing
+it to a crash.
+
+This is about the app writing to itself. It is unrelated to the server, which
+never writes to an assessment at all.
+
 ## Deliberately out of scope
 
 Stated as choices, not gaps.
 
 - **Assessments are only created on the device.** There is no back office
   assigning work, and no server-to-client sync of assessment data.
-- **No conflict handling.** One inspector, one device, one owner per record.
-  Nothing else writes to an assessment, so there is nothing to reconcile.
+- **No conflict handling between device and server.** One inspector, one
+  device, one owner per record. The server never writes to an assessment, so
+  there is nothing to reconcile. Concurrency *inside* the app is a different
+  matter and is handled — see R16.
 - **No questionnaire.** Title, location, inspector, notes and evidence are the
   whole form. The domain stays small on purpose.
 - **No users, roles or permissions.**

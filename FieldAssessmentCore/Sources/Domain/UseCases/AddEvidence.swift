@@ -30,15 +30,14 @@ public struct AddEvidence: Sendable {
                         capturing file: CapturedFile,
                         type: EvidenceType,
                         evidenceNotes: String? = nil) async throws -> Assessment {
-        let assessment = try await repository.fetch(id: assessmentId)
-
-        // Checked here as well as inside `adding`, and not for belt and
-        // braces: filing the media first is what keeps a crash from leaving a
-        // row pointing at nothing, so a refusal discovered afterwards would
-        // have already moved a file that nothing will ever reference. The
-        // entity keeps the rule; this keeps the orphan from being created on a
-        // path already known to fail.
-        guard assessment.status == .open else {
+        // Advisory, not authoritative. Filing the media first is what keeps a
+        // crash from leaving a row pointing at nothing, so a refusal
+        // discovered afterwards would already have moved a file nothing will
+        // ever reference. This reads a snapshot that may be stale by the time
+        // the write happens; the guard that decides is the one inside
+        // `adding`, re-run against fresh state on every attempt.
+        let preview = try await repository.fetch(id: assessmentId)
+        guard preview.status == .open else {
             throw AssessmentError.alreadyCompleted
         }
 
@@ -53,8 +52,10 @@ public struct AddEvidence: Sendable {
                                 notes: normalized(evidenceNotes),
                                 createdAt: capturedAt)
 
-        let updated = try assessment.adding(evidence, at: capturedAt)
-        try await repository.update(updated)
-        return updated
+        // The media is filed and the id is minted, so a retry from here is
+        // pure in-memory work: no second move, no new orphan.
+        return try await commit(assessmentId, in: repository) { current in
+            try current.adding(evidence, at: capturedAt)
+        }
     }
 }

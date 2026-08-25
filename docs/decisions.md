@@ -151,9 +151,10 @@ design a decision rather than a recital.
 
 ---
 
-## 13. No conflict resolution
+## 13. No conflict resolution between device and server
 
-Single-writer, push-only.
+Single-writer, push-only. This says nothing about concurrency inside the app,
+which is real and is dealt with in 18.
 
 **Why.** One inspector owns one assessment on one device. Conflict handling would
 add machinery with no scenario to justify it.
@@ -244,6 +245,44 @@ rewritten to promise that instead of promising zero.
 The domain side is already shaped for this — `Assessment.applying(_:at:)` takes
 a batch of edits, so a flush writes every touched field in one transaction
 rather than one per field.
+
+---
+
+## 18. Writes are compare-and-set, not last-writer-wins
+
+Every use case reads an assessment, computes a new one, and writes the whole
+aggregate back. `update` now refuses the write unless the stored version is
+still the one that was read.
+
+**Why.** The read-modify-write shape is lossy without it, and the windows are
+not theoretical. `AddEvidence` holds one open across filing the media;
+`UpdateAssessment` holds a shorter one. R7's debounced autosave fires on a
+timer, so a note flushed while a video is being filed was being reverted by the
+snapshot taken before it. Worse, `adding` copies `status` from that snapshot,
+so a completion landing in the window would have been rolled back to `open` —
+taking R6 with it, and leaving a draft carrying sync operations, which R10 says
+cannot exist.
+
+The version travels inside the value: an edit returns `version + 1`, so a write
+states which predecessor it expects without a separate parameter to forget.
+`updatedAt` was considered as the token and rejected — tests inject a fixed
+clock, so two legitimate writes would share a timestamp and the check would
+pass exactly where it needs to fail.
+
+Retrying re-runs the transform against freshly read state, which is what stops
+the guards inside it from judging a stale snapshot. Retries are cheap because
+everything expensive happens first: the media is already filed and the evidence
+id already minted, so a second attempt moves no files and creates no orphans.
+
+**The alternative.** Narrow the port so it takes the change rather than the
+aggregate — `apply(_ edits:to:)`, `append(_ evidence:to:)`. That removes the
+loss by construction and appends never collide. Rejected because the R6 guard
+would then have to run inside the repository to see fresh state, putting a
+domain rule in the Data layer.
+
+**Cost.** A `version` column, a retry loop, and a conflict that callers can
+receive. Three attempts is a guess: with one logical writer collisions are
+rare, and a single retry would almost always do.
 
 ---
 

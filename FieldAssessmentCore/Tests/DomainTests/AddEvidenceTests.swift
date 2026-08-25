@@ -18,6 +18,7 @@ final class AddEvidenceTests: XCTestCase {
 
     private func completed() -> Assessment {
         Assessment(reconstituting: UUID(),
+                   version: 1,
                    title: nil,
                    notes: nil,
                    location: "Warehouse 3",
