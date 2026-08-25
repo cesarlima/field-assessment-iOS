@@ -84,6 +84,34 @@ final class CompareAndSetTests: XCTestCase {
         XCTAssertEqual(stored.count, 1, "a retry must not move the media again")
     }
 
+    /// `updatedAt` means last local change, so it belongs to the attempt that
+    /// wrote — not to the one that collided. A retry stamping its original
+    /// time would order the assessment before an edit it already contains.
+    func test_addEvidence_retryStampsTheTimeOfTheAttemptThatWrote() async throws {
+        let existing = draft()
+        let repository = FakeAssessmentRepository(seed: [existing])
+        let files = FakeEvidenceFileStore()
+
+        let capturedAt = Date(timeIntervalSince1970: 1_700_000_100)
+        let noteAt = Date(timeIntervalSince1970: 1_700_000_200)
+        let retriedAt = Date(timeIntervalSince1970: 1_700_000_300)
+        let clock = SteppingClock([capturedAt, capturedAt, retriedAt])
+
+        let theirs = try existing.applying(.notes("cracked beam"), at: noteAt)
+        await repository.onBeforeUpdate { theirs }
+
+        let sut = AddEvidence(repository: repository, files: files, now: clock.now)
+        let result = try await sut.execute(assessmentId: existing.id,
+                                           capturing: capture,
+                                           type: .video)
+
+        XCTAssertEqual(result.updatedAt, retriedAt)
+        XCTAssertGreaterThan(result.updatedAt, theirs.updatedAt,
+                             "never older than the write it rebased on")
+        XCTAssertEqual(result.evidences.first?.createdAt, capturedAt,
+                       "the photo was taken before any of it")
+    }
+
     func test_whenRetriesRunOut_theConflictIsReported() async {
         let existing = draft()
         let repository = FakeAssessmentRepository(seed: [existing])

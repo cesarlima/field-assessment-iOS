@@ -139,6 +139,26 @@ actor FakeEvidenceFileStore: EvidenceFileStore {
     }
 }
 
+/// Hands out one date per call, in order, so an attempt can be told apart
+/// from the retry after it. The last date repeats once the list runs out.
+final class SteppingClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var times: [Date]
+
+    init(_ times: [Date]) {
+        precondition(!times.isEmpty)
+        self.times = times
+    }
+
+    var now: @Sendable () -> Date {
+        { [self] in
+            lock.lock()
+            defer { lock.unlock() }
+            return times.count > 1 ? times.removeFirst() : times[0]
+        }
+    }
+}
+
 func XCTAssertThrowsErrorAsync<T>(
     _ expression: @autoclosure () async throws -> T,
     file: StaticString = #filePath,

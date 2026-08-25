@@ -30,16 +30,16 @@ public struct AddEvidence: Sendable {
                         capturing file: CapturedFile,
                         type: EvidenceType,
                         evidenceNotes: String? = nil) async throws -> Assessment {
-        // Advisory, not authoritative. Filing the media first is what keeps a
-        // crash from leaving a row pointing at nothing, so a refusal
-        // discovered afterwards would already have moved a file nothing will
-        // ever reference. This reads a snapshot that may be stale by the time
-        // the write happens; the guard that decides is the one inside
-        // `adding`, re-run against fresh state on every attempt.
-        let preview = try await repository.fetch(id: assessmentId)
-        guard preview.status == .open else {
-            throw AssessmentError.alreadyCompleted
-        }
+        // An id that does not exist is a caller bug rather than a field
+        // condition, and failing on it here avoids moving a large file for
+        // nothing.
+        //
+        // Status is deliberately not checked. `adding` is the only authority
+        // on it: it alone sees fresh state, and it alone knows that a retry of
+        // a capture that already landed is a no-op rather than a refusal. A
+        // copy of that guard here would refuse the retry before `adding` ever
+        // ran, and report a failure for a photo that is already attached.
+        _ = try await repository.fetch(id: assessmentId)
 
         let fileName = try await files.store(file)
 
@@ -53,9 +53,17 @@ public struct AddEvidence: Sendable {
 
         // The media is filed and the id came in with the capture, so a retry
         // from here is pure in-memory work: no second move, no new orphan.
+        //
+        // `updatedAt` is stamped inside the closure, by the attempt that
+        // actually lands. Reusing `capturedAt` would let a retry write a time
+        // older than the edit it just rebased on, and a list ordered by last
+        // local change would show the assessment before a note it contains.
+        // `evidence.createdAt` keeps `capturedAt`: that is when the photo was
+        // taken, and no retry changes it.
+        let now = self.now
         do {
             return try await commit(assessmentId, in: repository) { current in
-                try current.adding(evidence, at: capturedAt)
+                try current.adding(evidence, at: now())
             }
         } catch let error as AssessmentError {
             // A refusal is final — the capture will never be attached, so

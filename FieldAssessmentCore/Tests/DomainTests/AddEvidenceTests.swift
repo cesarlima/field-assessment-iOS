@@ -104,7 +104,7 @@ final class AddEvidenceTests: XCTestCase {
         XCTAssertEqual(writes, 0)
     }
 
-    func test_execute_onCompletedAssessment_refusesBeforeMovingTheFile() async {
+    func test_execute_onCompletedAssessment_refusesAndLeavesNoOrphan() async {
         let existing = completed()
         let (sut, repository, files) = makeSUT(seed: [existing])
 
@@ -114,12 +114,53 @@ final class AddEvidenceTests: XCTestCase {
             XCTAssertEqual(error as? AssessmentError, .alreadyCompleted)
         }
 
-        // No file was filed, so the refusal leaves no orphan behind.
+        // The file is moved before the refusal is known, so the refusal has to
+        // take it back out.
+        let removed = await files.removed
+        XCTAssertEqual(removed, [capture.id])
+
         let stored = await files.stored
         XCTAssertTrue(stored.isEmpty)
 
         let writes = await repository.writes
         XCTAssertEqual(writes, 0)
+    }
+
+    /// The refusal above must not reach a capture that already landed. Status
+    /// is checked by `adding`, after the duplicate check, so a retry of an
+    /// attached capture succeeds even on an assessment completed since — and
+    /// keeps the file the attached evidence points at.
+    func test_execute_retryingACaptureThatLanded_succeedsAfterCompletion() async throws {
+        let existing = draft()
+        let (sut, repository, files) = makeSUT(seed: [existing])
+
+        let landed = try await sut.execute(assessmentId: existing.id,
+                                           capturing: capture,
+                                           type: .video)
+
+        await repository.overwrite(Assessment(reconstituting: landed.id,
+                                              version: landed.version + 1,
+                                              title: landed.title,
+                                              notes: landed.notes,
+                                              location: landed.location,
+                                              createdAt: landed.createdAt,
+                                              updatedAt: capturedAt,
+                                              inspector: landed.inspector,
+                                              status: .completed,
+                                              evidences: landed.evidences))
+
+        let result = try await sut.execute(assessmentId: existing.id,
+                                           capturing: capture,
+                                           type: .video)
+
+        XCTAssertEqual(result.evidences.count, 1, "still attached once")
+        XCTAssertEqual(result.status, .completed, "and the completion stands")
+
+        let removed = await files.removed
+        XCTAssertTrue(removed.isEmpty, "deleting here would orphan an attached row")
+
+        let stored = await files.stored
+        XCTAssertEqual(stored, [capture.id])
     }
 
     // MARK: - Retrying the same capture
