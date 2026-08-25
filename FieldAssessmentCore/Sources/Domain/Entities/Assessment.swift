@@ -146,3 +146,28 @@ extension Assessment {
                           evidences: evidences)
     }
 }
+
+// MARK: - Evidence
+
+extension Assessment {
+    /// Attaches a newly captured piece of evidence (R9), moving `updatedAt`.
+    ///
+    /// Refuses on a completed assessment for the same reason editing does
+    /// (R6), and refuses evidence stamped with another assessment's id.
+    func adding(_ evidence: Evidence, at now: Date) throws -> Assessment {
+        guard status == .open else { throw AssessmentError.alreadyCompleted }
+        guard evidence.assessmentId == id else {
+            throw AssessmentError.evidenceBelongsToAnotherAssessment
+        }
+
+        return Assessment(id: id,
+                          title: title,
+                          notes: notes,
+                          location: location,
+                          createdAt: createdAt,
+                          updatedAt: now,
+                          inspector: inspector,
+                          status: status,
+                          evidences: evidences + [evidence])
+    }
+}
