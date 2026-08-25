@@ -55,7 +55,7 @@ public struct CreateAssessment: Sendable {
                                     inspector: inspector,
                                     evidences: [],
                                     now: now())
-        try await repository.save(assessment)
+        try await repository.insert(assessment)
         return assessment
     }
 
@@ -88,14 +88,7 @@ public struct CreateAssessment: Sendable {
                                     inspector: nil,
                                     evidences: [evidence],
                                     now: capturedAt)
-        try await repository.save(assessment)
+        try await repository.insert(assessment)
         return assessment
     }
-}
-
-/// Trimmed, or nil when nothing but whitespace is left.
-private func normalized(_ value: String?) -> String? {
-    guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-          !trimmed.isEmpty else { return nil }
-    return trimmed
 }

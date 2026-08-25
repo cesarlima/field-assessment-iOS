@@ -219,6 +219,34 @@ so naming it beats hiding it behind an upsert.
 
 ---
 
+## 17. Draft writes are debounced, and flushed on blur and on background
+
+Typing does not write per keystroke. Writes are debounced, and forced
+immediately when a field loses focus and when the app leaves the foreground.
+
+**Why.** R7 originally promised "no state that exists only in memory", which is
+not implementable — a debounce window *is* memory-only state, and even writing
+on every keystroke leaves the gap between the key event and the commit. Since
+the window cannot be removed, the useful question is where to put its edges.
+Blur and backgrounding are where a person expects their input to be safe, and
+backgrounding is also the last moment the app is told about before the system
+can kill it.
+
+Per-keystroke writing was the alternative. It buys a window shorter than a
+person can perceive, at the price of a Core Data transaction per character on a
+device that may be recording video at the same time.
+
+**Cost.** An abrupt kill during continuous typing loses the last debounce
+window. That is real, and it is accepted: the inspector loses a fraction of a
+sentence they were still writing, never a field they had finished. R7 was
+rewritten to promise that instead of promising zero.
+
+The domain side is already shaped for this — `Assessment.applying(_:at:)` takes
+a batch of edits, so a flush writes every touched field in one transaction
+rather than one per field.
+
+---
+
 ## Designed but not built: chunked upload
 
 Recorded because the design is the deliverable, whether or not the code follows.

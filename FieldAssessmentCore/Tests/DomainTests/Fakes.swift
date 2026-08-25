@@ -1,26 +1,46 @@
 import Foundation
+import XCTest
 @testable import Domain
 
 enum FakeError: Error, Equatable {
-    case notFound
     case diskFull
 }
 
 actor FakeAssessmentRepository: AssessmentRepository {
-    private(set) var saved: [Assessment] = []
+    private var stored: [UUID: Assessment] = [:]
+    private(set) var inserted: [Assessment] = []
+    private(set) var updated: [Assessment] = []
 
-    func save(_ assessment: Assessment) async throws {
-        saved.append(assessment)
+    init(seed: [Assessment] = []) {
+        for assessment in seed { stored[assessment.id] = assessment }
+    }
+
+    func insert(_ assessment: Assessment) async throws {
+        stored[assessment.id] = assessment
+        inserted.append(assessment)
+    }
+
+    func update(_ assessment: Assessment) async throws {
+        guard stored[assessment.id] != nil else {
+            throw AssessmentRepositoryError.notFound(assessment.id)
+        }
+        stored[assessment.id] = assessment
+        updated.append(assessment)
     }
 
     func fetch(id: UUID) async throws -> Assessment {
-        guard let match = saved.last(where: { $0.id == id }) else { throw FakeError.notFound }
-        return match
+        guard let assessment = stored[id] else {
+            throw AssessmentRepositoryError.notFound(id)
+        }
+        return assessment
     }
 
     func fetchAll() async throws -> [Assessment] {
-        saved
+        Array(stored.values)
     }
+
+    /// Writes made, in order, so a test can tell an update from an insert.
+    var writes: Int { inserted.count + updated.count }
 }
 
 actor FakeEvidenceFileStore: EvidenceFileStore {
@@ -35,5 +55,19 @@ actor FakeEvidenceFileStore: EvidenceFileStore {
         if let failure { throw failure }
         stored.append(id)
         return "\(id.uuidString).\(file.url.pathExtension)"
+    }
+}
+
+func XCTAssertThrowsErrorAsync<T>(
+    _ expression: @autoclosure () async throws -> T,
+    file: StaticString = #filePath,
+    line: UInt = #line,
+    _ onError: (Error) -> Void
+) async {
+    do {
+        _ = try await expression()
+        XCTFail("Expected an error, got none", file: file, line: line)
+    } catch {
+        onError(error)
     }
 }

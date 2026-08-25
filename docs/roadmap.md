@@ -13,7 +13,8 @@ Goal: something that works end to end, however thin.
 
 - Core Data stack
 - Create, edit, list assessments locally
-- Debounced auto-save, with flush on background and on dismiss
+- Debounced auto-save, with flush when a field is left and when the app
+  backgrounds
 - Fake backend with failure injection and an in-app network toggle
 - One operation uploading
 

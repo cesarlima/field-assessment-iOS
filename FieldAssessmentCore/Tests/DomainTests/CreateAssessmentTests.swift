@@ -28,7 +28,7 @@ final class CreateAssessmentTests: XCTestCase {
         XCTAssertEqual(assessment.updatedAt, fixedNow)
         XCTAssertTrue(assessment.evidences.isEmpty)
 
-        let saved = await repository.saved
+        let saved = await repository.inserted
         XCTAssertEqual(saved, [assessment])
     }
 
@@ -47,7 +47,7 @@ final class CreateAssessmentTests: XCTestCase {
             XCTAssertEqual(error as? CreateAssessmentError, .noInput)
         }
 
-        let saved = await repository.saved
+        let saved = await repository.inserted
         XCTAssertTrue(saved.isEmpty)
     }
 
@@ -58,7 +58,7 @@ final class CreateAssessmentTests: XCTestCase {
             XCTAssertEqual(error as? CreateAssessmentError, .noInput)
         }
 
-        let saved = await repository.saved
+        let saved = await repository.inserted
         XCTAssertTrue(saved.isEmpty)
     }
 
@@ -78,7 +78,7 @@ final class CreateAssessmentTests: XCTestCase {
         XCTAssertEqual(evidence.createdAt, fixedNow)
 
         // One save call: the record and its first evidence land in one write.
-        let saved = await repository.saved
+        let saved = await repository.inserted
         XCTAssertEqual(saved, [assessment])
     }
 
@@ -102,7 +102,7 @@ final class CreateAssessmentTests: XCTestCase {
         }
 
         // The row must never exist without the file it points at.
-        let saved = await repository.saved
+        let saved = await repository.inserted
         XCTAssertTrue(saved.isEmpty)
     }
 
@@ -113,21 +113,5 @@ final class CreateAssessmentTests: XCTestCase {
         let second = try await sut.execute(location: "B")
 
         XCTAssertNotEqual(first.id, second.id)
-    }
-}
-
-// MARK: - Helper
-
-func XCTAssertThrowsErrorAsync<T>(
-    _ expression: @autoclosure () async throws -> T,
-    file: StaticString = #filePath,
-    line: UInt = #line,
-    _ onError: (Error) -> Void
-) async {
-    do {
-        _ = try await expression()
-        XCTFail("Expected an error, got none", file: file, line: line)
-    } catch {
-        onError(error)
     }
 }

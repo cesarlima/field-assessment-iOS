@@ -78,9 +78,16 @@ them one failed attempt at a time.
 **R6. Completion is final.**
 A completed assessment is not reopened or edited. It is a submitted record.
 
-**R7. Work in progress is never lost to a closed app.**
-Local changes are saved automatically as the inspector types. There is no Save
-button, and no state that exists only in memory.
+**R7. Work in progress survives a closed app.**
+There is no Save button. Changes persist while the inspector works, not when
+they leave the screen.
+
+The gap between a keystroke and a committed write cannot be zero — some window
+always exists. What is promised is that the window is short, and that it is
+closed at the two moments where loss would actually be noticed: when a field is
+left, and when the app goes to the background. An abrupt kill in the middle of
+continuous typing can cost the last moment of it. Nothing already finished is at
+risk.
 
 **R8. An empty assessment is not stored.**
 Opening the new-inspection screen and walking away leaves nothing behind. The

@@ -56,6 +56,8 @@ FieldAssessmentCore/          <- Swift package: Domain + Data
     Domain/
       Entities/
         Assessment.swift
+        AssessmentEdit.swift
+        AssessmentError.swift
         AssessmentStatus.swift
         CapturedFile.swift
         Evidence.swift
@@ -70,6 +72,8 @@ FieldAssessmentCore/          <- Swift package: Domain + Data
         AssessmentRepository.swift
         EvidenceFileStore.swift
         OperationRepository.swift
+      Support/
+        Normalization.swift
     Data/
       Persistence/
         Model.xcdatamodeld
