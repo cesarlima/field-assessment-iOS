@@ -54,16 +54,17 @@ public struct Assessment: Sendable, Equatable {
     /// The status is not a parameter: an assessment always starts `open` (R1),
     /// and only the completion operation may move it (R3).
     ///
-    /// The id is passed in rather than generated here because a first capture
-    /// has to stamp its `Evidence.assessmentId` before this value exists. The
-    /// use case owns that ordering; `internal` keeps the decision inside the
-    /// module, so nothing outside can mint an assessment at all.
+    /// The id is passed in rather than generated here so the use case owns
+    /// identity; `internal` keeps that decision inside the module, so nothing
+    /// outside can mint an assessment at all.
+    ///
+    /// It starts with no evidence. A creation triggered by a capture goes
+    /// through `init(capturing:now:)` instead.
     init(id: UUID,
          title: String?,
          notes: String?,
          location: String?,
          inspector: String?,
-         evidences: [Evidence],
          now: Date) {
         self.init(id: id,
                   version: 1,
@@ -74,7 +75,27 @@ public struct Assessment: Sendable, Equatable {
                   updatedAt: now,
                   inspector: normalized(inspector),
                   status: .open,
-                  evidences: evidences)
+                  evidences: [])
+    }
+
+    /// Starts a new assessment from the capture that triggered it (R9).
+    ///
+    /// The id comes from the evidence rather than being handed in separately,
+    /// because the file is filed and the evidence stamped before this value
+    /// exists. Deriving it is what makes an assessment holding another
+    /// assessment's evidence unrepresentable, rather than something a guard
+    /// has to catch — the two ids cannot disagree if there is only one.
+    init(capturing evidence: Evidence, now: Date) {
+        self.init(id: evidence.assessmentId,
+                  version: 1,
+                  title: nil,
+                  notes: nil,
+                  location: nil,
+                  createdAt: now,
+                  updatedAt: now,
+                  inspector: nil,
+                  status: .open,
+                  evidences: [evidence])
     }
 
     /// Rebuilds an assessment that already exists in storage.

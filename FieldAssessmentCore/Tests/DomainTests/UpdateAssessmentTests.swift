@@ -11,7 +11,6 @@ final class UpdateAssessmentTests: XCTestCase {
                    notes: nil,
                    location: location,
                    inspector: inspector,
-                   evidences: [],
                    now: createdAt)
     }
 

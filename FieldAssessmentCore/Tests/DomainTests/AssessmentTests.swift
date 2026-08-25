@@ -14,7 +14,6 @@ final class AssessmentTests: XCTestCase {
                                     notes: nil,
                                     location: nil,
                                     inspector: nil,
-                                    evidences: [],
                                     now: createdAt)
 
         let foreign = Evidence(id: UUID(),
@@ -27,5 +26,23 @@ final class AssessmentTests: XCTestCase {
         XCTAssertThrowsError(try assessment.adding(foreign, at: now)) { error in
             XCTAssertEqual(error as? AssessmentError, .evidenceBelongsToAnotherAssessment)
         }
+    }
+
+    /// The creation path has no equivalent guard because it cannot need one:
+    /// the assessment takes its id from the evidence, so the two agree by
+    /// construction. This pins that derivation, since dropping it would put
+    /// the mismatch back within reach.
+    func test_creatingFromACapture_takesItsIdentityFromTheEvidence() {
+        let evidence = Evidence(id: UUID(),
+                                assessmentId: UUID(),
+                                type: .image,
+                                fileName: "beam.heic",
+                                notes: nil,
+                                createdAt: createdAt)
+
+        let assessment = Assessment(capturing: evidence, now: createdAt)
+
+        XCTAssertEqual(assessment.id, evidence.assessmentId)
+        XCTAssertEqual(assessment.evidences, [evidence])
     }
 }

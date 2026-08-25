@@ -53,7 +53,6 @@ public struct CreateAssessment: Sendable {
                                     notes: notes,
                                     location: location,
                                     inspector: inspector,
-                                    evidences: [],
                                     now: now())
         try await repository.insert(assessment)
         return assessment
@@ -81,13 +80,7 @@ public struct CreateAssessment: Sendable {
                                 notes: normalized(evidenceNotes),
                                 createdAt: capturedAt)
 
-        let assessment = Assessment(id: assessmentId,
-                                    title: nil,
-                                    notes: nil,
-                                    location: nil,
-                                    inspector: nil,
-                                    evidences: [evidence],
-                                    now: capturedAt)
+        let assessment = Assessment(capturing: evidence, now: capturedAt)
         try await repository.insert(assessment)
         return assessment
     }

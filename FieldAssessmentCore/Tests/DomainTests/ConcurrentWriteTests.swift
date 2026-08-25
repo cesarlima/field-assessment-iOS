@@ -19,7 +19,6 @@ final class ConcurrentWriteTests: XCTestCase {
                    notes: nil,
                    location: "Warehouse 3",
                    inspector: "Ana",
-                   evidences: [],
                    now: createdAt)
     }
 
