@@ -107,6 +107,22 @@ If a task seems to need one of these, say so and ask before building it.
 - Validation that belongs to an entity lives on the entity, not in the use case.
 - Validation returns the list of what is missing, not a `Bool`.
 
+## Explaining things
+
+Explanations are part of the work, not a wrapper around it. A design that
+cannot be explained plainly is usually not understood yet.
+
+- Walk the concrete sequence. "The photo is copied to a temp file, then moved,
+  then the row is written" beats "the operation is not atomic across the two
+  stores".
+- Name the thing that breaks and what the person loses. Not "an inconsistent
+  state", but "the photo is on disk and counts as lost".
+- No jargon where a plain word works, and no rhetorical flourish. If a term is
+  unavoidable, define it once in the sentence that introduces it.
+- State the cost and what the solution does *not* solve, in the same breath as
+  the solution.
+- Short. The explanation ends when the point is made.
+
 ## Commits
 
 - Never add a `Co-Authored-By` trailer. Commits carry one author.

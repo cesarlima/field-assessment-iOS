@@ -286,6 +286,49 @@ rare, and a single retry would almost always do.
 
 ---
 
+## 19. A capture carries its own identity
+
+`CapturedFile` holds a UUID minted when the file is captured. The evidence
+directory names the file after it, `EvidenceFileStore.store` adopts a file
+already filed under that id instead of moving anything, and the evidence row
+takes the same id.
+
+**Why.** Filing the media moves it, so the source is gone as soon as the first
+attempt gets past `store`. Before this, the destination name came from a UUID
+minted inside the use case: if the write then failed, that name died with the
+call, the caller retried from a source that no longer existed, and every
+attempt failed from then on. The photo was sitting in the evidence directory,
+findable by nobody. A file on disk that counts as lost is the worst outcome
+this project has.
+
+Copying instead of moving was the obvious alternative and was rejected: moving
+within the container is a rename, while copying a 400 MB video costs real time
+and double the space, on a device that may be recording at the same time.
+
+Two things follow from it. `store` had to become idempotent on the id, which is
+decision 5 one level down — the operation's own identity is its idempotency
+key. And `Assessment.adding` now returns unchanged when the evidence is already
+attached, because a caller told to retry will sometimes retry something that
+landed, and at-least-once has to mean exactly-one-attached.
+
+A refusal is the one case where the file is deleted: `alreadyCompleted` means
+the capture will never be attached, so nothing will ever point at it.
+Everything else leaves the file in place — after the move it is the only copy
+of the capture left, and deleting it to tidy up would destroy the evidence.
+
+**Cost.** The id is minted by whoever captures, which is the screen, not the
+domain. The screen also holds the `CapturedFile` until the write lands and has
+to tell a refusal from a retryable failure. That is real logic moving outward,
+and it is the price of the capture being retryable at all.
+
+**What it does not fix.** The app being killed between the move and the write.
+Nothing durable recorded the id, so on relaunch there is a file no row points
+at and no way to know what it was for. The launch sweep from decision 15
+deletes it and the capture is lost. Closing that needs the intent written down
+before the move, which is an outbox, which is Block 2.
+
+---
+
 ## Designed but not built: chunked upload
 
 Recorded because the design is the deliverable, whether or not the code follows.

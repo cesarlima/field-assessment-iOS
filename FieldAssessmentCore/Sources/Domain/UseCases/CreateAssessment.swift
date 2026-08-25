@@ -64,16 +64,19 @@ public struct CreateAssessment: Sendable {
     /// leaves an orphan file rather than a row pointing at nothing. The
     /// assessment and its first evidence are then written together, so the app
     /// can never be terminated into an empty assessment.
+    ///
+    /// Nothing here is a final refusal — an insert either lands or fails for a
+    /// reason worth retrying — so a failure leaves the media filed. Calling
+    /// again with the same capture picks it up instead of moving it twice.
     public func execute(capturing file: CapturedFile,
                         type: EvidenceType,
                         evidenceNotes: String? = nil) async throws -> Assessment {
         let assessmentId = UUID()
-        let evidenceId = UUID()
 
-        let fileName = try await files.store(file, as: evidenceId)
+        let fileName = try await files.store(file)
 
         let capturedAt = now()
-        let evidence = Evidence(id: evidenceId,
+        let evidence = Evidence(id: file.id,
                                 assessmentId: assessmentId,
                                 type: type,
                                 fileName: fileName,

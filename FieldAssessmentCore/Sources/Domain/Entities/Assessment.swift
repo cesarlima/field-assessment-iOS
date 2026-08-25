@@ -187,7 +187,14 @@ extension Assessment {
     ///
     /// Refuses on a completed assessment for the same reason editing does
     /// (R6), and refuses evidence stamped with another assessment's id.
+    ///
+    /// Evidence already attached is returned untouched rather than added
+    /// again. A capture keeps its id across attempts, so a caller retrying one
+    /// that actually landed must not end up with two copies of it — and the
+    /// check comes before the status guard, because that retry is not a change
+    /// and must not be refused on an assessment completed since.
     func adding(_ evidence: Evidence, at now: Date) throws -> Assessment {
+        guard !evidences.contains(where: { $0.id == evidence.id }) else { return self }
         guard status == .open else { throw AssessmentError.alreadyCompleted }
         guard evidence.assessmentId == id else {
             throw AssessmentError.evidenceBelongsToAnotherAssessment

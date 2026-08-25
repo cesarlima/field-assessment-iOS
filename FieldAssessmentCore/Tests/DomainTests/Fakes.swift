@@ -4,6 +4,10 @@ import XCTest
 
 enum FakeError: Error, Equatable {
     case diskFull
+
+    /// The source was already moved out of temporary storage by an earlier
+    /// attempt. Real `FileManager` reports this as "no such file".
+    case sourceIsGone
 }
 
 actor FakeAssessmentRepository: AssessmentRepository {
@@ -20,6 +24,10 @@ actor FakeAssessmentRepository: AssessmentRepository {
     /// run out.
     private var alwaysStale = false
 
+    /// Fails one write and then behaves, standing in for a transient problem
+    /// the caller is expected to retry.
+    private var nextUpdateFailure: Error?
+
     init(seed: [Assessment] = []) {
         for assessment in seed { stored[assessment.id] = assessment }
     }
@@ -30,6 +38,10 @@ actor FakeAssessmentRepository: AssessmentRepository {
 
     func failEveryUpdateAsStale() {
         alwaysStale = true
+    }
+
+    func failNextUpdate(with error: Error) {
+        nextUpdateFailure = error
     }
 
     /// Writes with no checks at all, standing in for whatever else in the app
@@ -44,6 +56,10 @@ actor FakeAssessmentRepository: AssessmentRepository {
     }
 
     func update(_ assessment: Assessment) async throws {
+        if let failure = nextUpdateFailure {
+            nextUpdateFailure = nil
+            throw failure
+        }
         if let replacement = beforeUpdate?() {
             stored[replacement.id] = replacement
             beforeUpdate = nil
@@ -76,7 +92,15 @@ actor FakeAssessmentRepository: AssessmentRepository {
 }
 
 actor FakeEvidenceFileStore: EvidenceFileStore {
+    /// Ids whose file is sitting in the evidence directory.
     private(set) var stored: [UUID] = []
+    private(set) var removed: [UUID] = []
+
+    /// Sources already moved out of temporary storage. Moving is what makes a
+    /// second attempt from the same source impossible, so the fake has to
+    /// model it — otherwise a retry test would pass for the wrong reason.
+    private var consumed: Set<URL> = []
+
     private var failure: Error?
 
     /// Runs while the media is being filed — the window AddEvidence holds open
@@ -91,14 +115,27 @@ actor FakeEvidenceFileStore: EvidenceFileStore {
         duringStore = hook
     }
 
-    func store(_ file: CapturedFile, as id: UUID) async throws -> String {
+    func store(_ file: CapturedFile) async throws -> String {
         if let failure { throw failure }
         if let duringStore {
             self.duringStore = nil
             await duringStore()
         }
-        stored.append(id)
-        return "\(id.uuidString).\(file.url.pathExtension)"
+
+        let name = "\(file.id.uuidString).\(file.url.pathExtension)"
+
+        // Already filed under this id: adopt it, leave the source alone.
+        guard !stored.contains(file.id) else { return name }
+
+        guard !consumed.contains(file.url) else { throw FakeError.sourceIsGone }
+        consumed.insert(file.url)
+        stored.append(file.id)
+        return name
+    }
+
+    func remove(_ id: UUID) async throws {
+        stored.removeAll { $0 == id }
+        removed.append(id)
     }
 }
 

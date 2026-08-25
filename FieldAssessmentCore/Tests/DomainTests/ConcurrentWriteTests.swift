@@ -11,7 +11,7 @@ import XCTest
 final class ConcurrentWriteTests: XCTestCase {
     private let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
     private let later = Date(timeIntervalSince1970: 1_700_000_900)
-    private let capture = CapturedFile(url: URL(fileURLWithPath: "/tmp/capture.mov"))
+    private let capture = CapturedFile(id: UUID(), url: URL(fileURLWithPath: "/tmp/capture.mov"))
 
     private func draft(id: UUID = UUID()) -> Assessment {
         Assessment(id: id,

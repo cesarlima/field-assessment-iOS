@@ -41,21 +41,30 @@ public struct AddEvidence: Sendable {
             throw AssessmentError.alreadyCompleted
         }
 
-        let evidenceId = UUID()
-        let fileName = try await files.store(file, as: evidenceId)
+        let fileName = try await files.store(file)
 
         let capturedAt = now()
-        let evidence = Evidence(id: evidenceId,
+        let evidence = Evidence(id: file.id,
                                 assessmentId: assessmentId,
                                 type: type,
                                 fileName: fileName,
                                 notes: normalized(evidenceNotes),
                                 createdAt: capturedAt)
 
-        // The media is filed and the id is minted, so a retry from here is
-        // pure in-memory work: no second move, no new orphan.
-        return try await commit(assessmentId, in: repository) { current in
-            try current.adding(evidence, at: capturedAt)
+        // The media is filed and the id came in with the capture, so a retry
+        // from here is pure in-memory work: no second move, no new orphan.
+        do {
+            return try await commit(assessmentId, in: repository) { current in
+                try current.adding(evidence, at: capturedAt)
+            }
+        } catch let error as AssessmentError {
+            // A refusal is final — the capture will never be attached, so
+            // nothing will ever point at the file it moved. This is the one
+            // place deleting media destroys no evidence. Every other failure
+            // leaves the file where it is, because it is the only copy left
+            // and the caller can try the same capture again.
+            try? await files.remove(file.id)
+            throw error
         }
     }
 }

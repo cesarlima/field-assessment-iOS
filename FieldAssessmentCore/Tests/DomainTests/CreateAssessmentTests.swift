@@ -3,7 +3,7 @@ import XCTest
 
 final class CreateAssessmentTests: XCTestCase {
     private let fixedNow = Date(timeIntervalSince1970: 1_700_000_000)
-    private let capture = CapturedFile(url: URL(fileURLWithPath: "/tmp/capture.mov"))
+    private let capture = CapturedFile(id: UUID(), url: URL(fileURLWithPath: "/tmp/capture.mov"))
 
     private func makeSUT(
         fileStoreFailure: Error? = nil

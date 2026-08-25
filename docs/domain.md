@@ -41,7 +41,7 @@ recording.
 
 | Field | Required | Meaning |
 |---|---|---|
-| id | yes | Identity, created on the device. |
+| id | yes | Identity, created on the device the moment the file is captured. |
 | assessmentId | yes | Which inspection it belongs to. |
 | type | yes | image, video or audio. |
 | fileName | yes | Which file on disk holds the content. |
@@ -98,6 +98,11 @@ captured piece of evidence — not on the first tap.
 **R9. Evidence is saved the moment it is captured.**
 Unlike text, a captured photo or video is never held pending. It is recorded
 immediately, and counts as real input for the rule above.
+
+If saving it fails while the app is still running, the same capture can be
+tried again, and trying again attaches it once. A capture is identified from
+the moment it exists, so a second attempt is the first one continuing, never a
+second piece of evidence.
 
 **R10. Only completed assessments are sent to the server.**
 Drafts are local, always. Nothing about an open assessment reaches the network.
