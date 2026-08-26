@@ -51,6 +51,9 @@ actor FakeAssessmentRepository: AssessmentRepository {
     }
 
     func insert(_ assessment: Assessment) async throws {
+        guard stored[assessment.id] == nil else {
+            throw AssessmentRepositoryError.alreadyExists(assessment.id)
+        }
         stored[assessment.id] = assessment
         inserted.append(assessment)
     }

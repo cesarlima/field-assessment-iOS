@@ -95,6 +95,10 @@ Opening the new-inspection screen and walking away leaves nothing behind. The
 record comes into existence on the first real input — a filled field or a
 captured piece of evidence — not on the first tap.
 
+The identity is decided earlier than that, when the screen opens. Nothing is
+written then, and an id nobody stored is not a record. What it settles is that
+every attempt at the same creation is recognisably the same one.
+
 **R9. Evidence is saved the moment it is captured.**
 Unlike text, a captured photo or video is never held pending. It is recorded
 immediately, and counts as real input for the rule above.

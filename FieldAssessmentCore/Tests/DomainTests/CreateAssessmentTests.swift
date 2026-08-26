@@ -5,6 +5,10 @@ final class CreateAssessmentTests: XCTestCase {
     private let fixedNow = Date(timeIntervalSince1970: 1_700_000_000)
     private let capture = CapturedFile(id: UUID(), url: URL(fileURLWithPath: "/tmp/capture.mov"))
 
+    /// Minted when the screen opens, held by the caller, reused by every
+    /// attempt at the same creation.
+    private let id = UUID()
+
     private func makeSUT(
         fileStoreFailure: Error? = nil
     ) -> (CreateAssessment, FakeAssessmentRepository, FakeEvidenceFileStore) {
@@ -20,7 +24,7 @@ final class CreateAssessmentTests: XCTestCase {
     func test_execute_withText_storesAnOpenAssessment() async throws {
         let (sut, repository, _) = makeSUT()
 
-        let assessment = try await sut.execute(location: "Warehouse 3")
+        let assessment = try await sut.execute(id: id, location: "Warehouse 3")
 
         XCTAssertEqual(assessment.status, .open)
         XCTAssertEqual(assessment.location, "Warehouse 3")
@@ -35,7 +39,7 @@ final class CreateAssessmentTests: XCTestCase {
     func test_execute_withText_trimsWhitespace() async throws {
         let (sut, _, _) = makeSUT()
 
-        let assessment = try await sut.execute(inspector: "  Ana  ")
+        let assessment = try await sut.execute(id: id, inspector: "  Ana  ")
 
         XCTAssertEqual(assessment.inspector, "Ana")
     }
@@ -43,7 +47,7 @@ final class CreateAssessmentTests: XCTestCase {
     func test_execute_withNoInput_storesNothing() async {
         let (sut, repository, _) = makeSUT()
 
-        await XCTAssertThrowsErrorAsync(try await sut.execute()) { error in
+        await XCTAssertThrowsErrorAsync(try await sut.execute(id: id)) { error in
             XCTAssertEqual(error as? CreateAssessmentError, .noInput)
         }
 
@@ -54,7 +58,7 @@ final class CreateAssessmentTests: XCTestCase {
     func test_execute_withWhitespaceOnly_storesNothing() async {
         let (sut, repository, _) = makeSUT()
 
-        await XCTAssertThrowsErrorAsync(try await sut.execute(title: "   ", notes: "\n")) { error in
+        await XCTAssertThrowsErrorAsync(try await sut.execute(id: id, title: "   ", notes: "\n")) { error in
             XCTAssertEqual(error as? CreateAssessmentError, .noInput)
         }
 
@@ -67,7 +71,7 @@ final class CreateAssessmentTests: XCTestCase {
     func test_execute_withCapture_storesAssessmentAndEvidenceTogether() async throws {
         let (sut, repository, _) = makeSUT()
 
-        let assessment = try await sut.execute(capturing: capture, type: .video)
+        let assessment = try await sut.execute(id: id, capturing: capture, type: .video)
 
         XCTAssertEqual(assessment.status, .open)
         XCTAssertEqual(assessment.evidences.count, 1)
@@ -85,7 +89,7 @@ final class CreateAssessmentTests: XCTestCase {
     func test_execute_withCapture_namesTheFileAfterTheEvidence() async throws {
         let (sut, _, files) = makeSUT()
 
-        let assessment = try await sut.execute(capturing: capture, type: .video)
+        let assessment = try await sut.execute(id: id, capturing: capture, type: .video)
         let evidence = try XCTUnwrap(assessment.evidences.first)
 
         XCTAssertEqual(evidence.fileName, "\(evidence.id.uuidString).mov")
@@ -97,7 +101,7 @@ final class CreateAssessmentTests: XCTestCase {
     func test_execute_withCapture_whenFilingTheFileFails_storesNothing() async {
         let (sut, repository, _) = makeSUT(fileStoreFailure: FakeError.diskFull)
 
-        await XCTAssertThrowsErrorAsync(try await sut.execute(capturing: capture, type: .image)) { error in
+        await XCTAssertThrowsErrorAsync(try await sut.execute(id: id, capturing: capture, type: .image)) { error in
             XCTAssertEqual(error as? FakeError, .diskFull)
         }
 
@@ -106,12 +110,69 @@ final class CreateAssessmentTests: XCTestCase {
         XCTAssertTrue(saved.isEmpty)
     }
 
-    func test_execute_generatesADistinctIdPerAssessment() async throws {
+    // MARK: - The same creation running twice
+
+    /// Two calls with the same capture, no error and nothing lost in between:
+    /// the button tapped twice. Before the caller owned the id, this wrote two
+    /// assessments carrying one evidence id and one file, so deleting either
+    /// took the other's photo.
+    func test_execute_withCapture_twiceInParallel_writesOneAssessment() async throws {
+        let (sut, repository, files) = makeSUT()
+        let capture = self.capture
+        let id = self.id
+
+        async let first = sut.execute(id: id, capturing: capture, type: .image)
+        async let second = sut.execute(id: id, capturing: capture, type: .image)
+        let (a, b) = try await (first, second)
+
+        XCTAssertEqual(a.id, b.id)
+        XCTAssertEqual(a, b, "both callers see the record that exists")
+
+        let inserted = await repository.inserted
+        XCTAssertEqual(inserted.count, 1)
+
+        let stored = await files.stored
+        XCTAssertEqual(stored, [capture.id], "and the media was filed once")
+    }
+
+    /// The same shape on the text path: a blur flush and a background flush
+    /// firing together used to leave two drafts behind.
+    func test_execute_withText_twiceInParallel_writesOneAssessment() async throws {
+        let (sut, repository, _) = makeSUT()
+        let id = self.id
+
+        async let first = sut.execute(id: id, location: "Warehouse 3")
+        async let second = sut.execute(id: id, location: "Warehouse 3")
+        _ = try await (first, second)
+
+        let inserted = await repository.inserted
+        XCTAssertEqual(inserted.count, 1)
+    }
+
+    /// A repeat is reported as success, and what it reports is what is stored
+    /// — not the value it had built and failed to write.
+    func test_execute_whenTheIdIsAlreadyTaken_returnsTheStoredRecord() async throws {
         let (sut, _, _) = makeSUT()
 
-        let first = try await sut.execute(location: "A")
-        let second = try await sut.execute(location: "B")
+        let created = try await sut.execute(id: id, location: "Warehouse 3")
+        let again = try await sut.execute(id: id, location: "Somewhere else")
 
-        XCTAssertNotEqual(first.id, second.id)
+        XCTAssertEqual(again, created)
+        XCTAssertEqual(again.location, "Warehouse 3")
+    }
+
+    /// The capture that lost the race must keep its file: the record that won
+    /// points at it.
+    func test_execute_withCapture_whenTheIdIsAlreadyTaken_keepsTheMedia() async throws {
+        let (sut, _, files) = makeSUT()
+
+        _ = try await sut.execute(id: id, capturing: capture, type: .image)
+        _ = try await sut.execute(id: id, capturing: capture, type: .image)
+
+        let removed = await files.removed
+        XCTAssertTrue(removed.isEmpty)
+
+        let stored = await files.stored
+        XCTAssertEqual(stored, [capture.id])
     }
 }

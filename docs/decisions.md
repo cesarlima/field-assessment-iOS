@@ -213,10 +213,11 @@ gap. The app dying in that gap leaves exactly the empty assessment R8 forbids.
 In a project whose subject is termination mid-operation, introducing a two-step
 create would be building the bug on purpose.
 
-**Cost.** Two `execute` overloads instead of one, and Presentation carries an
-`assessmentId: UUID?` to know whether the next input creates or updates. That
-branch is real — a fresh screen and an existing draft are genuinely different —
-so naming it beats hiding it behind an upsert.
+**Cost.** Two `execute` overloads instead of one, and Presentation has to know
+whether the next input creates or updates. That branch is real — a fresh screen
+and an existing draft are genuinely different — so naming it beats hiding it
+behind an upsert. It carries a flag rather than an optional id, because the id
+itself now exists from the moment the screen opens (decision 20).
 
 ---
 
@@ -326,6 +327,47 @@ Nothing durable recorded the id, so on relaunch there is a file no row points
 at and no way to know what it was for. The launch sweep from decision 15
 deletes it and the capture is lost. Closing that needs the intent written down
 before the move, which is an outbox, which is Block 2.
+
+---
+
+## 20. The caller owns the assessment id
+
+The screen mints it when it opens and passes it to `CreateAssessment`. Nothing
+is stored at that point. `insert` throws `alreadyExists` when the id is taken,
+and the use case answers that by returning the record that is already there.
+
+**Why.** Every attempt at one creation has to be recognisably the same
+creation, and before this each call minted a fresh id. Two calls with the same
+capture — the button tapped twice, or retry pressed while the first attempt was
+still in flight — wrote two assessments carrying the same evidence id and
+pointing at the same file. `docs/domain.md` says evidence belongs to exactly
+one assessment, and deleting either record would have taken the other's photo.
+This was reproduced before it was fixed: two concurrent calls, two rows, one
+file.
+
+`AddEvidence` never had the problem because the target already exists and has a
+fixed id, so the second write collides, re-reads, and finds the evidence
+attached. Creation had nothing to collide on.
+
+**Why the primary key and not a lookup.** Checking whether some assessment
+already holds this evidence id would close the sequential case and leave the
+concurrent one: both calls look, neither finds anything, both insert. Making
+that airtight needs a uniqueness constraint on the evidence id — a second
+unique index, and a new query on the port, to do what the assessment's primary
+key already does for free.
+
+Deriving the assessment id from the capture id was the other candidate. It
+needs no new parameter, but it makes an assessment and a piece of evidence
+share one UUID. Passing one where the other belongs would then work for the
+first evidence and break on the second, which is a cheap trap to set and an
+expensive one to find.
+
+**Cost.** An id crossing into the domain from outside, and one more error case
+on the port. A create that runs twice with different text reports the stored
+record and discards what the second call built — durable loss is none, because
+the screen still holds what was typed and its next flush goes through
+`UpdateAssessment`, but the second call's return value is not what it asked
+for.
 
 ---
 

@@ -17,6 +17,14 @@ public enum AssessmentRepositoryError: Error, Equatable, Sendable {
     /// than guessed at — without them a test can only assert that something
     /// went wrong.
     case staleWrite(id: UUID, expected: Int, found: Int)
+
+    /// A record already carries this id, so nothing was written.
+    ///
+    /// The caller owns the id and reuses it across attempts, so this is the
+    /// normal answer to a create that ran twice — a button tapped twice, a
+    /// retry racing the attempt it was retrying — not a collision between two
+    /// different assessments. Two UUIDs do not collide.
+    case alreadyExists(UUID)
 }
 
 public protocol AssessmentRepository: Sendable {
@@ -25,6 +33,11 @@ public protocol AssessmentRepository: Sendable {
     /// Creating a record and recording its first evidence is a single write:
     /// an app terminated between two of them would leave the empty assessment
     /// R8 forbids.
+    ///
+    /// Throws `alreadyExists` when the id is taken, and writes nothing. The
+    /// primary key is what decides, so two creates running at once cannot both
+    /// win: checking first and inserting after would leave a window where
+    /// neither sees the other.
     func insert(_ assessment: Assessment) async throws
 
     /// Writes an existing assessment, if nothing else wrote first.

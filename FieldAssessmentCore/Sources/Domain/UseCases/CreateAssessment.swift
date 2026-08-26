@@ -17,6 +17,14 @@ public enum CreateAssessmentError: Error, Equatable, Sendable {
 /// There are two triggers and no third: the inspector typed something, or the
 /// inspector captured something. Neither overload can be called empty, which
 /// is how R8 is enforced by shape rather than by a runtime check.
+///
+/// The id comes from the caller, minted when the screen opens. Nothing is
+/// stored then, so R8 still holds — an id in memory is not a record. What it
+/// buys is that every attempt at the same creation carries the same identity,
+/// so the second one lands on a primary key that is already taken instead of
+/// writing a second assessment. Without it, a button tapped twice produces two
+/// records sharing one evidence id and one file on disk, and deleting either
+/// one takes the other's photo with it.
 public struct CreateAssessment: Sendable {
     private let repository: AssessmentRepository
     private let files: EvidenceFileStore
@@ -35,7 +43,8 @@ public struct CreateAssessment: Sendable {
     /// Throws `noInput` when every field is empty or only whitespace: a typed
     /// space is not a real input, and R8 says an empty assessment is not
     /// stored.
-    public func execute(title: String? = nil,
+    public func execute(id: UUID,
+                        title: String? = nil,
                         notes: String? = nil,
                         location: String? = nil,
                         inspector: String? = nil) async throws -> Assessment {
@@ -48,14 +57,13 @@ public struct CreateAssessment: Sendable {
             throw CreateAssessmentError.noInput
         }
 
-        let assessment = Assessment(id: UUID(),
+        let assessment = Assessment(id: id,
                                     title: title,
                                     notes: notes,
                                     location: location,
                                     inspector: inspector,
                                     now: now())
-        try await repository.insert(assessment)
-        return assessment
+        return try await insert(assessment)
     }
 
     /// First input is a capture (R9).
@@ -68,23 +76,46 @@ public struct CreateAssessment: Sendable {
     /// Nothing here is a final refusal — an insert either lands or fails for a
     /// reason worth retrying — so a failure leaves the media filed. Calling
     /// again with the same capture picks it up instead of moving it twice.
-    public func execute(capturing file: CapturedFile,
+    public func execute(id: UUID,
+                        capturing file: CapturedFile,
                         type: EvidenceType,
                         evidenceNotes: String? = nil) async throws -> Assessment {
-        let assessmentId = UUID()
-
         let fileName = try await files.store(file)
 
         let capturedAt = now()
         let evidence = Evidence(id: file.id,
-                                assessmentId: assessmentId,
+                                assessmentId: id,
                                 type: type,
                                 fileName: fileName,
                                 notes: normalized(evidenceNotes),
                                 createdAt: capturedAt)
 
         let assessment = Assessment(capturing: evidence, now: capturedAt)
-        try await repository.insert(assessment)
-        return assessment
+        return try await insert(assessment)
+    }
+
+    /// Writes the record, treating an id that is already taken as this same
+    /// creation having landed already.
+    ///
+    /// That is the only thing it can be: the caller owns the id and reuses it
+    /// across attempts, so the record sitting there is the one this call was
+    /// trying to write. Returning it makes a repeat end in success with one
+    /// record, the same way a repeated capture ends attached once.
+    ///
+    /// The stored record is returned rather than the one just built, because
+    /// the stored one is what exists. A create that ran twice with different
+    /// text loses nothing durable: the screen still holds what was typed, now
+    /// knows the record exists, and its next flush goes through
+    /// `UpdateAssessment`.
+    ///
+    /// The media is never deleted here. On a capture, the record that already
+    /// exists points at the very file this call filed.
+    private func insert(_ assessment: Assessment) async throws -> Assessment {
+        do {
+            try await repository.insert(assessment)
+            return assessment
+        } catch AssessmentRepositoryError.alreadyExists {
+            return try await repository.fetch(id: assessment.id)
+        }
     }
 }
