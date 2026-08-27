@@ -20,7 +20,7 @@ jobs:
     name: domain
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Package.swift declares swift-tools-version 6.2, which needs Xcode 26.
       # Printing what the runner has makes a toolchain that is too old show up
