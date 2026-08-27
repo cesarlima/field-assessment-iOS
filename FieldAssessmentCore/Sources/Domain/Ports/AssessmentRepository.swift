@@ -60,6 +60,4 @@ public protocol AssessmentRepository: Sendable {
 
     /// Throws `notFound` when no record carries this id.
     func fetch(id: UUID) async throws -> Assessment
-
-    func fetchAll() async throws -> [Assessment]
 }

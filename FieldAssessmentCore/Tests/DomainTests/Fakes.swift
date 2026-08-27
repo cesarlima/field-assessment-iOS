@@ -86,10 +86,6 @@ actor FakeAssessmentRepository: AssessmentRepository {
         return assessment
     }
 
-    func fetchAll() async throws -> [Assessment] {
-        Array(stored.values)
-    }
-
     /// Writes made, in order, so a test can tell an update from an insert.
     var writes: Int { inserted.count + updated.count }
 }

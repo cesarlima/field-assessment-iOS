@@ -20,7 +20,7 @@ import Foundation
 /// in-memory work and moves no files.
 func commit(_ id: UUID,
             in repository: AssessmentRepository,
-            attempts: Int = 3,
+            attempts: Int = 5,
             _ transform: (Assessment) throws -> Assessment) async throws -> Assessment {
     var attempt = 1
     while true {

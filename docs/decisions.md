@@ -282,8 +282,9 @@ would then have to run inside the repository to see fresh state, putting a
 domain rule in the Data layer.
 
 **Cost.** A `version` column, a retry loop, and a conflict that callers can
-receive. Three attempts is a guess: with one logical writer collisions are
-rare, and a single retry would almost always do.
+receive. Five attempts is a bound, not a tuned number: with one logical writer
+collisions are rare, and the count only matters if something is colliding in a
+loop — in which case the point is to give up and report, not to keep trying.
 
 ---
 
