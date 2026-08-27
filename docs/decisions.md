@@ -371,6 +371,45 @@ for.
 
 ---
 
+## 21. Completion ships without its transactional half
+
+`CompleteAssessment` validates R4 and writes the status. Hard rule 4 says the
+status change and the sync operations it owes are one transaction. There is no
+Operation table yet, so today it writes half of that.
+
+**Why now rather than in Block 2.** `completed` existed in the enum with no way
+to produce it. R3, R4 and R5 were written rules with no executor, and the R6
+guards inside `applying` and `adding` were defending against a state no code
+could create — only tests could, by faking a stored record. Rules with no
+executor rot quietly: nothing tells you they are wrong, because nothing runs
+them.
+
+**What is missing, concretely.** R10 says only completed assessments are sent.
+So the moment the status turns `completed`, the app owes the server that record
+and each of its evidences, and that debt is rows in the outbox. Write the
+status, die before the rows, and on relaunch there is a finished inspection
+with nothing telling the app to send it. It stays invisible, because delivery
+state is derived from those rows (decision 3): no rows outstanding reads as
+delivered. A completed assessment shown as delivered that never left the
+device.
+
+That failure cannot happen yet — nothing syncs, and a draft carries no delivery
+state either way (R14). It becomes reachable the moment the outbox exists,
+which is the same block that closes it.
+
+**What changes then.** The validation, the requirement list, the guards and the
+retry stay. The write does not: `commit` goes through `update`, which knows
+about an assessment and nothing else. Either `commit` takes how to write as a
+parameter, or `CompleteAssessment` stops using it and runs its own read-
+transform-write. Small either way, and named here so it is found rather than
+rediscovered.
+
+**Cost.** A hard rule is knowingly half-implemented between now and Block 2. It
+is written down instead of silently pending, because a rule nobody can see
+being broken is the kind that stays broken.
+
+---
+
 ## Designed but not built: chunked upload
 
 Recorded because the design is the deliverable, whether or not the code follows.

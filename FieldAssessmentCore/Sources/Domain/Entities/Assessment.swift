@@ -180,6 +180,51 @@ extension Assessment {
     }
 }
 
+// MARK: - Completion
+
+extension Assessment {
+    /// What R4 still asks for. Empty means the inspection can be declared
+    /// finished.
+    ///
+    /// Public because the screen needs it before the tap: it shows what is
+    /// still open while the inspector fills the form, rather than only after a
+    /// refusal. The order follows the form.
+    public var missingForCompletion: [AssessmentRequirement] {
+        var missing: [AssessmentRequirement] = []
+        if location == nil { missing.append(.location) }
+        if inspector == nil { missing.append(.inspector) }
+        if evidences.isEmpty { missing.append(.evidence) }
+        return missing
+    }
+
+    /// Declares the inspection finished (R3). The only producer of
+    /// `.completed`.
+    ///
+    /// Returns `self` on an assessment that is already completed. A second tap
+    /// on Finish asks for nothing the first did not already do, so it is a
+    /// repeat rather than a refusal — unlike an edit, which wants something
+    /// R6 will not give.
+    ///
+    /// Throws `incomplete` carrying everything that is missing at once (R5).
+    func completing(at now: Date) throws -> Assessment {
+        guard status == .open else { return self }
+
+        let missing = missingForCompletion
+        guard missing.isEmpty else { throw AssessmentError.incomplete(missing) }
+
+        return Assessment(id: id,
+                          version: version + 1,
+                          title: title,
+                          notes: notes,
+                          location: location,
+                          createdAt: createdAt,
+                          updatedAt: now,
+                          inspector: inspector,
+                          status: .completed,
+                          evidences: evidences)
+    }
+}
+
 // MARK: - Evidence
 
 extension Assessment {

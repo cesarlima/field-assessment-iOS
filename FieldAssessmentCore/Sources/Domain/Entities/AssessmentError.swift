@@ -16,4 +16,9 @@ public enum AssessmentError: Error, Equatable, Sendable {
     /// them. Attaching a piece stamped with another assessment's id would
     /// leave a row whose parent disagrees with where it is filed.
     case evidenceBelongsToAnotherAssessment
+
+    /// R4 is not met yet. Carries everything that is missing, because R5 says
+    /// the inspector sees all of it at once rather than one failed attempt at
+    /// a time.
+    case incomplete([AssessmentRequirement])
 }

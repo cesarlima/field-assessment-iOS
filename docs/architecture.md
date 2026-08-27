@@ -58,6 +58,7 @@ FieldAssessmentCore/          <- Swift package: Domain + Data
         Assessment.swift
         AssessmentEdit.swift
         AssessmentError.swift
+        AssessmentRequirement.swift
         AssessmentStatus.swift
         CapturedFile.swift
         Evidence.swift

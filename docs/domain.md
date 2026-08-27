@@ -79,6 +79,10 @@ them one failed attempt at a time.
 **R6. Completion is final.**
 A completed assessment is not reopened or edited. It is a submitted record.
 
+Declaring it finished a second time is not an edit and is not refused — it
+asks for nothing the first one did not already do, so it changes nothing and
+reports the record as it stands.
+
 **R7. Work in progress survives a closed app.**
 There is no Save button. Changes persist while the inspector works, not when
 they leave the screen.
