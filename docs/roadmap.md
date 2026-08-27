@@ -60,6 +60,12 @@ the role and chunking is not.
 
 ## After, if time allows
 
+- A build step enforcing the dependency rule. `CLAUDE.md` says Domain imports
+  Foundation only, and nothing checks it: CoreData, SwiftUI and UIKit ship in
+  the SDK, so `import CoreData` inside Domain compiles with no dependency
+  declared and the build stays green. A grep over `Sources/Domain` is enough.
+  Low priority while the layer is small enough to read in one sitting — it
+  matters the day someone who has not read `CLAUDE.md` works in it.
 - Chunked upload. Designed in `decisions.md` either way — an honest "here is the
   design and here is why it conflicts with background sessions" beats a
   half-working implementation.
