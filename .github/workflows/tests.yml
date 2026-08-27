@@ -1,0 +1,35 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# The default token is granted write access. This job only reads the code.
+permissions:
+  contents: read
+
+# A force-push should not leave two runs racing over the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  domain:
+    name: domain
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Package.swift declares swift-tools-version 6.2, which needs Xcode 26.
+      # Printing what the runner has makes a toolchain that is too old show up
+      # as a version number rather than as a manifest parse error.
+      - name: Toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Test
+        working-directory: FieldAssessmentCore
+        run: swift test
