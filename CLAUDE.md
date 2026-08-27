@@ -123,10 +123,15 @@ cannot be explained plainly is usually not understood yet.
   the solution.
 - Short. The explanation ends when the point is made.
 
-## Commits
+## Commits and pull requests
 
-- Never add a `Co-Authored-By` trailer. Commits carry one author.
 - Explain why the change was made, not what the diff already shows.
+- **No tool attribution anywhere.** No `Co-Authored-By` trailer, no "generated
+  with" line, no bot footer, no emoji signature — not in commit messages, not
+  in pull request titles or bodies, not in issues or code comments. The work
+  carries one author, and how it was written is not part of the record.
+- This applies to text written into the repository and to text pushed to
+  GitHub. If a default template adds such a line, remove it before sending.
 
 ## Testing
 
