@@ -95,6 +95,40 @@ Do not create, unless the current block explicitly calls for it:
 
 If a task seems to need one of these, say so and ask before building it.
 
+## Reachability comes before the fix
+
+The same discipline, applied to failures instead of abstractions. A failure
+earns code once it has a path through the app — not when it is merely possible
+to express.
+
+Before writing the fix, walk the sequence out loud:
+
+1. Which screens are in the flow, and what does each one hold?
+2. What has to be true for the bad ordering to occur?
+3. Can the app produce that, or does it need a caller nobody writes?
+
+If the answer to 3 is "a caller that does not exist", say so and stop. Record
+the invariant if it is worth stating; do not add a flag, a branch, or a state
+to defend it. A guard on an impossible case costs something true that has to be
+kept true forever, and it tells the next reader the case happens.
+
+This applies to review findings — mine, a reviewer's, a tool's — with no
+exception for a finding that comes with a reproduction. A test can call a use
+case in ways no screen can, so a probe going red proves the domain type allows
+the shape, not that the app reaches it. Check the flow, not the API surface.
+
+Two things stay legitimate and should not be confused with the above:
+
+- **An entity invariant**, stated once and enforced where the type is built.
+  It is what makes the reachability argument hold, and it costs nothing.
+- **A simplification** that closes the case as a side effect. Land it as a
+  simplification — less code, fewer states — and say so in those words. Calling
+  it a bug fix puts a threat in the record that the app does not have.
+
+When a reachability argument is what keeps a case closed, it goes in
+`docs/decisions.md`, because the next screen added can invalidate it and only a
+written argument can be rechecked.
+
 ## Conventions
 
 - Use cases are named in domain language: `CreateAssessment`, not

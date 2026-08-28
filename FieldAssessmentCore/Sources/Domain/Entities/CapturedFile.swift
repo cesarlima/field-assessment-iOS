@@ -28,12 +28,17 @@ public struct CapturedFile: Sendable, Equatable {
     /// The assessment this capture was taken for, decided when the shutter
     /// fires and never afterwards.
     ///
-    /// It is carried here rather than passed alongside because a capture
-    /// belongs to exactly one assessment, and two ways to say which one is one
-    /// too many: the same capture aimed at a second assessment would give two
-    /// records a row with the same evidence id naming the same file, and
-    /// deleting either would take the other's photo. With a single source
-    /// there is nothing to disagree with.
+    /// It is carried here rather than passed alongside so that one place says
+    /// it. With the assessment arriving as a separate parameter, the same
+    /// value was stamped on the evidence and used for the commit, so
+    /// `adding`'s ownership guard could never fire from a use case; and the
+    /// question the refusal path has to answer — is anything pointing at this
+    /// file — needed a flag from `store` to answer. One source removes both.
+    ///
+    /// This is not defending against a capture reaching two assessments. The
+    /// creation screen holds one assessment id and nothing carries a capture
+    /// to another screen, so that sequence has no path through the app
+    /// (decision 24).
     public let assessmentId: UUID
 
     public let url: URL

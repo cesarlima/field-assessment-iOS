@@ -457,9 +457,10 @@ advances in bursts and resumes when the user opens the app.
 
 ## 22. Only the call that filed a capture may delete it
 
-**Superseded by 23, one round later.** It closed one of the two orderings and
-read as though it closed both. What is written below was the reasoning at the
-time; decision 23 says what was wrong with it.
+**Superseded by 23, one round later**, and the scenario both were argued from
+turned out to be unreachable — decision 24. It closed one of the two orderings
+and read as though it closed both. What is written below was the reasoning at
+the time; 23 says what was wrong with it, and 24 says what was wrong with both.
 
 `EvidenceFileStore.store` returns a `StoredFile` carrying the name and whether
 this call moved the file in or adopted one already there. A refusal deletes the
@@ -501,33 +502,38 @@ for the adopt path.
 assessment from the capture instead of a separate parameter. `StoredFile` and
 its `wasMoved` flag are gone; `store` returns the file name again.
 
-**Why.** Decision 22 stopped an adopting call from deleting a file the mover
-had attached. The mirrored ordering stayed open and was reproduced: B moves the
-file and holds `wasMoved: true`; A adopts it and its write lands, so A now
-names the file; B's commit then reads an assessment completed in the meantime,
-`adding` refuses, and B deletes the file A names. `wasMoved` answers "nothing
-pointed at this when I moved it". The question at the point of deleting is
-"does anything point at it now", and no flag captured earlier can answer that.
+**Amended by 24.** As first written this was argued from a photo being deleted
+out from under another assessment. That sequence has no path through the app,
+and the argument below has been rewritten to the reasons that survive. The
+change itself stands; what it is worth is smaller than first claimed.
 
-The root cause was one level up. `AddEvidence` stamped the evidence with the
-`assessmentId` the caller passed and committed against that same id, so
-`adding`'s `evidenceBelongsToAnotherAssessment` guard could not fire from any
-use case. The same `CapturedFile` handed to two open assessments gave both a
-row with one evidence id naming one file — the thing `docs/domain.md` says
-cannot exist, and the thing that makes deleting either record take the other's
-photo. Decision 22 cited that error as the reason the scenario was "a caller
-bug the domain already names", and the name was unreachable.
+**Why.** Two things were wrong, one of them costing something today.
+
+The reachable one, on a single screen: a capture is filed, its commit fails on
+something transient, the inspector taps Finish, and the retry runs. `store`
+adopts the file it already moved, so decision 22's `wasMoved` is false;
+`adding` finds the evidence unattached and refuses on status; the gate then
+skips the delete. The file is left orphaned until the launch sweep — the
+cleanup that branch exists to do, not done. Decision 22's flag caused this.
+
+The dead one: `AddEvidence` stamped the evidence with the `assessmentId` the
+caller passed and committed against that same id, so `adding`'s
+`evidenceBelongsToAnotherAssessment` guard could never fire from a use case. A
+guard that cannot fire is not protection, and it reads as though it is.
 
 Carrying the assessment inside the capture leaves one source for it, which is
 the move `Assessment(capturing:)` already made for the same reason: the two
-cannot disagree if there is only one.
+cannot disagree if there is only one. It also shortens the argument at the
+point that matters — see below — from a flag that has to be kept true to two
+lines of reading.
 
 **What follows.** A capture belongs to one assessment, and `adding` reaches its
 status guard only after finding the evidence is not in that assessment's list.
 So a refusal proves no row anywhere names the file, and deleting it needs no
-condition. That also fixed a smaller bug in the opposite direction: the common
-way to reach the refusal is a retry, where the file was already filed, and the
-`wasMoved` gate was skipping exactly the cleanup the branch exists to do.
+condition. `StoredFile` and its flag are gone, `store` returns the name again,
+both capture entry points lost a parameter, and the entity's guard is now a
+real invariant rather than dead code. Less code and fewer states, which is what
+this decision is worth — not a saved photo.
 
 **Cost.** The public signatures of both capture entry points changed, and
 Presentation now has to know which assessment a capture is for at the moment it
@@ -535,7 +541,47 @@ is taken. That is information the screen already has — it minted the assessmen
 id when it opened.
 
 **What is still open.** Two `CapturedFile` values built with the same `id` and
-different `assessmentId`s would put the duplicate row back. The accidental
-route is gone; the deliberate one is not. What closes it durably is a
-uniqueness constraint on the evidence id in Core Data, which lands with the
-repository in Block 1. Recorded here rather than discovered there.
+different `assessmentId`s would put the duplicate row back. No screen does
+that, so this is a note rather than a threat: what closes it durably is a
+uniqueness constraint on the evidence id in Core Data, which the repository
+needs anyway and lands with it in Block 1. Recorded here rather than discovered
+there.
+
+---
+
+## 24. A failure is fixed only when it is reachable
+
+Before a defect gets code, the sequence that produces it is walked against the
+screens this app has. If it needs a caller the app never writes, the invariant
+is recorded and nothing is built. Written into `CLAUDE.md` as "Reachability
+comes before the fix".
+
+**Why.** Decisions 22 and 23 were both argued from one scenario: the same
+`CapturedFile` handed to two assessments, one attaching and one refusing, the
+refusal deleting a file the other record names. It was reproduced in a throwaway
+probe and treated as live.
+
+It is not reachable. The creation screen mints one assessment id, opens the
+camera with it, and receives the capture back. One id is in scope for the whole
+flow, and nothing carries a capture to another screen. Within a single
+assessment the ordering cannot happen either: deleting a file another row names
+needs one call to attach and another to refuse, and once a call has attached,
+every later call carrying that evidence id stops at `adding`'s duplicate check
+and never reaches the status guard.
+
+The probe that "reproduced" it built two assessments directly against the use
+case. That is a shape the domain type accepts and the app never produces, which
+is the trap this decision exists to catch: a test can call a use case in ways no
+screen can, so a green reproduction is not evidence of a reachable bug.
+
+**What it costs when this is skipped.** Decision 22 added a type to the port, a
+flag every future store implementation has to report truthfully, and a
+condition on the delete — to defend a case with no path through the app. The
+flag then caused the one bug in this area that was real: the retry after
+completion left its file orphaned.
+
+**Cost.** A slower path to a fix, and some of the walking finds nothing. It
+also means living with cases that are possible in the type system and closed
+only by the flow — if a screen is added later that breaks the assumption, the
+argument has to be walked again. That is why the reachability argument goes in
+the decision log rather than in a reviewer's head.

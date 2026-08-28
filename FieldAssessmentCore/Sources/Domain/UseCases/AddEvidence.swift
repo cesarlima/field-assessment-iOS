@@ -26,9 +26,8 @@ public struct AddEvidence: Sendable {
     }
 
     /// The assessment is not named separately: it comes from the capture,
-    /// which was taken for one and only one. Handing the same capture to a
-    /// second assessment is what would give two records a row with the same
-    /// evidence id naming the same file, and there is now no way to say it.
+    /// which was taken for one and only one. That single source is what lets
+    /// the refusal path below delete the media without testing anything first.
     @discardableResult
     public func execute(capturing file: CapturedFile,
                         type: EvidenceType,

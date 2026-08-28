@@ -50,9 +50,11 @@ recording.
 
 Evidence belongs to exactly one assessment and is never shared between them.
 Which one is decided when the shutter fires and travels with the capture, so
-there is one place that says it and nothing to disagree with. Two records
-holding a row with the same evidence id would name the same file, and deleting
-either would take the other's photo.
+there is one place that says it and nothing to disagree with. The shape
+matters because the file on disk is named after its evidence id: two records
+holding that id would name one file, and deleting either would take the other's
+photo. Nothing in the app can produce that — this is the invariant the model is
+built on, not a race being guarded against (decision 24).
 
 The recorded file itself is not part of the database. The database records that
 the evidence exists; the file lives on disk.
