@@ -22,13 +22,32 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # Package.swift declares swift-tools-version 6.2, which needs Xcode 26.
-      # Printing what the runner has makes a toolchain that is too old show up
-      # as a version number rather than as a manifest parse error.
+      # `macos-latest` is an alias, and the Xcode it points at changes when the
+      # runner image is rotated. `Package.swift` declares swift-tools-version
+      # 6.2, so a default older than Xcode 26 does not fail a test — it fails
+      # reading the manifest, and every pull request goes red with an error
+      # that never mentions Xcode.
+      #
+      # Selecting the newest toolchain on the image and checking it here is
+      # what makes that a single readable line instead of a post-mortem. Plain
+      # shell rather than an action: one less dependency to trust for two
+      # commands.
       - name: Toolchain
         run: |
+          set -euo pipefail
+          newest=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -vi beta | sort -V | tail -1 || true)
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
+
           swift --version
           xcodebuild -version
+
+          required=6.2
+          found=$(swift -version 2>&1 | sed -n 's/.*Swift version \([0-9][0-9.]*\).*/\1/p' | head -1)
+          if [ "$(printf '%s\n%s\n' "$required" "$found" | sort -V | head -1)" != "$required" ]; then
+            echo "::error::Swift $found is older than the $required that Package.swift requires."
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
 
       - name: Test
         working-directory: FieldAssessmentCore
