@@ -314,9 +314,10 @@ attached, because a caller told to retry will sometimes retry something that
 landed, and at-least-once has to mean exactly-one-attached.
 
 A refusal is the one case where the file is deleted: `alreadyCompleted` means
-the capture will never be attached, so nothing will ever point at it.
-Everything else leaves the file in place — after the move it is the only copy
-of the capture left, and deleting it to tidy up would destroy the evidence.
+the capture will never be attached, so nothing will ever point at it — and only
+the call that filed the file may delete it, which decision 22 covers.
+Everything else leaves the file in place: after the move it is the only copy of
+the capture left, and deleting it to tidy up would destroy the evidence.
 
 **Cost.** The id is minted by whoever captures, which is the screen, not the
 domain. The screen also holds the `CapturedFile` until the write lands and has
@@ -369,6 +370,14 @@ record and discards what the second call built — durable loss is none, because
 the screen still holds what was typed and its next flush goes through
 `UpdateAssessment`, but the second call's return value is not what it asked
 for.
+
+That reasoning covers the text path and nothing else. On a capture the screen
+is holding nothing: by the time `insert` runs, `store` has already moved the
+file out of temporary storage. Returning the record that won reported success
+with the photo on disk, no row naming it, and no reason for anyone to try
+again — the launch sweep would then delete it. So the capture path answers
+`alreadyExists` by attaching the evidence to the record that won, which is the
+write `AddEvidence` already makes.
 
 ---
 
@@ -433,3 +442,38 @@ wake-up via `handleEventsForBackgroundURLSession`, but will not do it eighty
 times generously. Mitigations: enqueue several chunks at once rather than one at
 a time, use larger chunks to reduce round trips, and accept that progress
 advances in bursts and resumes when the user opens the app.
+
+---
+
+## 22. Only the call that filed a capture may delete it
+
+`EvidenceFileStore.store` returns a `StoredFile` carrying the name and whether
+this call moved the file in or adopted one already there. A refusal deletes the
+media only when it moved it.
+
+**Why.** Decision 19 made `store` idempotent on the capture id: a second call
+with the same id adopts the file instead of moving it. That is what lets a
+retry find media the first attempt already filed. It also means that arriving
+at a refusal no longer proves this call is the only thing that ever touched
+that file.
+
+Concretely: capture X is attached to assessment A. Something then aims X at
+assessment B, which has been completed. `adding` refuses, the refusal deletes
+the file, and A is left holding a row that names a file which no longer exists
+— the outcome decision 15 picked the write order specifically to avoid.
+
+Reaching that needs the same `CapturedFile` handed to two assessments, which is
+a caller bug the domain already has a name for
+(`evidenceBelongsToAnotherAssessment`). The bug is unlikely. The damage is
+another inspection's photo, gone silently and permanently, and whether this
+call moved the file is something the store already knew and was discarding.
+
+The catch was narrowed in the same change. It caught `AssessmentError` whole
+and treated every case as a final refusal that destroys media. Only
+`alreadyCompleted` reaches it today, but `incomplete` already sits in that
+enum, and any retryable case added later would have become a silent delete.
+
+**Cost.** One more type on the port, and every implementation has to report
+truthfully whether it moved or adopted. A store that always answered "moved"
+would put the bug straight back, so the disk-backed implementation owes a test
+for the adopt path.

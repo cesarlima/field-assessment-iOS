@@ -41,13 +41,13 @@ public struct AddEvidence: Sendable {
         // ran, and report a failure for a photo that is already attached.
         _ = try await repository.fetch(id: assessmentId)
 
-        let fileName = try await files.store(file)
+        let filed = try await files.store(file)
 
         let capturedAt = now()
         let evidence = Evidence(id: file.id,
                                 assessmentId: assessmentId,
                                 type: type,
-                                fileName: fileName,
+                                fileName: filed.name,
                                 notes: normalized(evidenceNotes),
                                 createdAt: capturedAt)
 
@@ -65,14 +65,20 @@ public struct AddEvidence: Sendable {
             return try await commit(assessmentId, in: repository) { current in
                 try current.adding(evidence, at: now())
             }
-        } catch let error as AssessmentError {
-            // A refusal is final — the capture will never be attached, so
-            // nothing will ever point at the file it moved. This is the one
-            // place deleting media destroys no evidence. Every other failure
-            // leaves the file where it is, because it is the only copy left
-            // and the caller can try the same capture again.
-            try? await files.remove(file.id)
-            throw error
+        } catch AssessmentError.alreadyCompleted {
+            // A completed assessment will never take this capture, so nothing
+            // will ever point at the file — unless this call did not put it
+            // there. `store` adopts a file already filed under that id, and
+            // whatever filed it first may already hold a row naming it;
+            // deleting then takes that assessment's photo away.
+            //
+            // Only `alreadyCompleted` is caught. Every other failure leaves
+            // the file alone, because after the move it is the only copy of
+            // the capture left and the caller can try the same one again.
+            if filed.wasMoved {
+                try? await files.remove(file.id)
+            }
+            throw AssessmentError.alreadyCompleted
         }
     }
 }

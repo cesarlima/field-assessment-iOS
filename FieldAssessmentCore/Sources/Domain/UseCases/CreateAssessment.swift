@@ -73,25 +73,58 @@ public struct CreateAssessment: Sendable {
     /// assessment and its first evidence are then written together, so the app
     /// can never be terminated into an empty assessment.
     ///
-    /// Nothing here is a final refusal — an insert either lands or fails for a
-    /// reason worth retrying — so a failure leaves the media filed. Calling
-    /// again with the same capture picks it up instead of moving it twice.
+    /// A failure leaves the media filed. Calling again with the same capture
+    /// picks it up instead of moving it twice.
     public func execute(id: UUID,
                         capturing file: CapturedFile,
                         type: EvidenceType,
                         evidenceNotes: String? = nil) async throws -> Assessment {
-        let fileName = try await files.store(file)
+        let filed = try await files.store(file)
 
         let capturedAt = now()
         let evidence = Evidence(id: file.id,
                                 assessmentId: id,
                                 type: type,
-                                fileName: fileName,
+                                fileName: filed.name,
                                 notes: normalized(evidenceNotes),
                                 createdAt: capturedAt)
 
         let assessment = Assessment(capturing: evidence, now: capturedAt)
-        return try await insert(assessment)
+        do {
+            try await repository.insert(assessment)
+            return assessment
+        } catch AssessmentRepositoryError.alreadyExists {
+            return try await attach(evidence, filed: filed)
+        }
+    }
+
+    /// Attaches the capture to whichever record took the id first.
+    ///
+    /// The text path can answer `alreadyExists` by returning the stored record
+    /// because the screen still holds what was typed. Here it does not: `store`
+    /// has already moved the capture out of temporary storage, so returning
+    /// the other record would report success while the only copy of the photo
+    /// sits on disk with no row naming it — an orphan the launch sweep
+    /// deletes, and nobody has a reason to try again.
+    ///
+    /// Attaching it is the same write `AddEvidence` makes, so a repeat of this
+    /// same capture lands here too and `adding` answers it with the record
+    /// untouched.
+    private func attach(_ evidence: Evidence, filed: StoredFile) async throws -> Assessment {
+        let now = self.now
+        do {
+            return try await commit(evidence.assessmentId, in: repository) { current in
+                try current.adding(evidence, at: now())
+            }
+        } catch AssessmentError.alreadyCompleted {
+            // The record that won has since been completed, so it will never
+            // take this capture. Deleting is safe only if this call is what
+            // filed the file — see `AddEvidence` for the same reasoning.
+            if filed.wasMoved {
+                try? await files.remove(evidence.id)
+            }
+            throw AssessmentError.alreadyCompleted
+        }
     }
 
     /// Writes the record, treating an id that is already taken as this same
@@ -100,16 +133,14 @@ public struct CreateAssessment: Sendable {
     /// That is the only thing it can be: the caller owns the id and reuses it
     /// across attempts, so the record sitting there is the one this call was
     /// trying to write. Returning it makes a repeat end in success with one
-    /// record, the same way a repeated capture ends attached once.
+    /// record.
     ///
     /// The stored record is returned rather than the one just built, because
     /// the stored one is what exists. A create that ran twice with different
     /// text loses nothing durable: the screen still holds what was typed, now
     /// knows the record exists, and its next flush goes through
-    /// `UpdateAssessment`.
-    ///
-    /// The media is never deleted here. On a capture, the record that already
-    /// exists points at the very file this call filed.
+    /// `UpdateAssessment`. The capture path cannot say that, so it does not
+    /// come through here — see `attach`.
     private func insert(_ assessment: Assessment) async throws -> Assessment {
         do {
             try await repository.insert(assessment)

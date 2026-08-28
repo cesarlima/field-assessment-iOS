@@ -114,7 +114,7 @@ actor FakeEvidenceFileStore: EvidenceFileStore {
         duringStore = hook
     }
 
-    func store(_ file: CapturedFile) async throws -> String {
+    func store(_ file: CapturedFile) async throws -> StoredFile {
         if let failure { throw failure }
         if let duringStore {
             self.duringStore = nil
@@ -124,12 +124,14 @@ actor FakeEvidenceFileStore: EvidenceFileStore {
         let name = "\(file.id.uuidString).\(file.url.pathExtension)"
 
         // Already filed under this id: adopt it, leave the source alone.
-        guard !stored.contains(file.id) else { return name }
+        guard !stored.contains(file.id) else {
+            return StoredFile(name: name, wasMoved: false)
+        }
 
         guard !consumed.contains(file.url) else { throw FakeError.sourceIsGone }
         consumed.insert(file.url)
         stored.append(file.id)
-        return name
+        return StoredFile(name: name, wasMoved: true)
     }
 
     func remove(_ id: UUID) async throws {

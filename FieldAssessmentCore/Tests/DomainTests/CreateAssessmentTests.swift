@@ -161,6 +161,31 @@ final class CreateAssessmentTests: XCTestCase {
         XCTAssertEqual(again.location, "Warehouse 3")
     }
 
+    /// R16's own example: the screen mints one id, then a debounced text flush
+    /// and a capture race on it. The text create wins the primary key.
+    ///
+    /// By this point `store` has already moved the capture out of temporary
+    /// storage, so the screen is not holding the photo any more. Returning the
+    /// text-only record would report success with the file on disk and no row
+    /// naming it — an orphan the launch sweep deletes. The capture has to be
+    /// attached to the record that won.
+    func test_execute_withCapture_whenAnotherCreateWonTheId_attachesTheEvidence() async throws {
+        let (sut, repository, files) = makeSUT()
+
+        _ = try await sut.execute(id: id, location: "Warehouse 3")
+        let result = try await sut.execute(id: id, capturing: capture, type: .image)
+
+        XCTAssertEqual(result.location, "Warehouse 3", "the record that won is kept")
+        XCTAssertEqual(result.evidences.count, 1, "and the photo is attached, not dropped")
+        XCTAssertEqual(result.evidences.first?.id, capture.id)
+
+        let stored = try await repository.fetch(id: id)
+        XCTAssertEqual(stored.evidences.count, 1, "durably, not only in the value returned")
+
+        let removed = await files.removed
+        XCTAssertTrue(removed.isEmpty)
+    }
+
     /// The capture that lost the race must keep its file: the record that won
     /// points at it.
     func test_execute_withCapture_whenTheIdIsAlreadyTaken_keepsTheMedia() async throws {

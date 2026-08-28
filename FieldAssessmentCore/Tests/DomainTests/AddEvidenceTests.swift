@@ -264,6 +264,41 @@ final class AddEvidenceTests: XCTestCase {
         XCTAssertTrue(stored.isEmpty, "no orphan is left behind")
     }
 
+    /// `store` adopts a file already filed under that id instead of moving
+    /// one, so arriving at the refusal does not mean this call is the only
+    /// thing that ever touched the file. Deleting one it merely adopted takes
+    /// the photo away from whatever attached it first, and leaves that
+    /// assessment holding a row naming a file that no longer exists.
+    func test_execute_refusingACaptureFiledByAnotherAssessment_leavesTheMediaAlone() async throws {
+        let owner = draft()
+        let other = completed()
+        let (sut, repository, files) = makeSUT(seed: [owner, other])
+
+        let attached = try await sut.execute(assessmentId: owner.id,
+                                             capturing: capture,
+                                             type: .image)
+        XCTAssertEqual(attached.evidences.count, 1)
+
+        // The same capture is then aimed at a completed assessment, which
+        // refuses it. Nothing about that refusal concerns the file.
+        await XCTAssertThrowsErrorAsync(
+            try await sut.execute(assessmentId: other.id, capturing: capture, type: .image)
+        ) { error in
+            XCTAssertEqual(error as? AssessmentError, .alreadyCompleted)
+        }
+
+        let removed = await files.removed
+        XCTAssertTrue(removed.isEmpty, "the file belongs to the assessment that attached it")
+
+        let stored = await files.stored
+        XCTAssertEqual(stored, [capture.id])
+
+        let kept = try await repository.fetch(id: owner.id)
+        XCTAssertEqual(kept.evidences.first?.fileName,
+                       attached.evidences.first?.fileName,
+                       "and that row still names a file that exists")
+    }
+
     func test_execute_withUnknownId_throwsNotFound() async {
         let (sut, _, files) = makeSUT(seed: [])
         let missing = UUID()
