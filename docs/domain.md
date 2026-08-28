@@ -49,6 +49,10 @@ recording.
 | createdAt | yes | When it was captured. |
 
 Evidence belongs to exactly one assessment and is never shared between them.
+Which one is decided when the shutter fires and travels with the capture, so
+there is one place that says it and nothing to disagree with. Two records
+holding a row with the same evidence id would name the same file, and deleting
+either would take the other's photo.
 
 The recorded file itself is not part of the database. The database records that
 the evidence exists; the file lives on disk.
@@ -117,6 +121,12 @@ If saving it fails while the app is still running, the same capture can be
 tried again, and trying again attaches it once. A capture is identified from
 the moment it exists, so a second attempt is the first one continuing, never a
 second piece of evidence.
+
+Because it is the first one continuing, it carries no new information. A second
+attempt that names a different type, or a different note, is answered with the
+evidence as it already stands and what it carried is dropped. Changing what an
+attached piece of evidence says needs its own operation, and there is no screen
+asking for one yet.
 
 **R10. Only completed assessments are sent to the server.**
 Drafts are local, always. Nothing about an open assessment reaches the network.

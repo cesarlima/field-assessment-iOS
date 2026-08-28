@@ -43,6 +43,11 @@ Failure tests are written alongside, not after.
 - Files on disk, metadata in Core Data, file names only
 - `uploadEvidence` as an independent operation
 - Whole-file upload from file, never from `Data`
+- Editing what an attached piece of evidence says. Today the only way to reach
+  `Evidence.notes` is at capture time: repeating a capture to change its note
+  is answered as the retry it looks like, and the note is dropped. Harmless
+  while nothing offers to edit one; the moment a caption field exists, it needs
+  an operation of its own.
 
 Deliberately naive: no resume. Drop the connection at 80% of a large video and
 watch it restart from zero. That experience is the justification for anything

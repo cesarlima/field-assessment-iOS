@@ -245,6 +245,17 @@ extension Assessment {
     /// that actually landed must not end up with two copies of it — and the
     /// check comes before the status guard, because that retry is not a change
     /// and must not be refused on an assessment completed since.
+    ///
+    /// Untouched is literal. A second call carrying the same evidence id with
+    /// a different type or note gets the record as it stands, and what it
+    /// carried is dropped: a repeat is the first attempt continuing, and the
+    /// first attempt is what decided. Changing what an attached piece of
+    /// evidence says needs its own operation, and nothing offers to yet.
+    ///
+    /// The ownership guard below cannot fire from a use case, because a
+    /// capture names its assessment and the use cases commit against that same
+    /// id (decision 23). It stays as the entity's own invariant, for callers
+    /// that build an `Evidence` by hand.
     func adding(_ evidence: Evidence, at now: Date) throws -> Assessment {
         guard !evidences.contains(where: { $0.id == evidence.id }) else { return self }
         guard status == .open else { throw AssessmentError.alreadyCompleted }

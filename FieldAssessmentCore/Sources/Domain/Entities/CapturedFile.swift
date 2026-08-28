@@ -25,10 +25,22 @@ public struct CapturedFile: Sendable, Equatable {
     /// disk carry the same name.
     public let id: UUID
 
+    /// The assessment this capture was taken for, decided when the shutter
+    /// fires and never afterwards.
+    ///
+    /// It is carried here rather than passed alongside because a capture
+    /// belongs to exactly one assessment, and two ways to say which one is one
+    /// too many: the same capture aimed at a second assessment would give two
+    /// records a row with the same evidence id naming the same file, and
+    /// deleting either would take the other's photo. With a single source
+    /// there is nothing to disagree with.
+    public let assessmentId: UUID
+
     public let url: URL
 
-    public init(id: UUID, url: URL) {
+    public init(id: UUID, assessmentId: UUID, url: URL) {
         self.id = id
+        self.assessmentId = assessmentId
         self.url = url
     }
 }

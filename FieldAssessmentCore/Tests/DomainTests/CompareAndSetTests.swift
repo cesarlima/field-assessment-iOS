@@ -4,10 +4,16 @@ import XCTest
 final class CompareAndSetTests: XCTestCase {
     private let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
     private let later = Date(timeIntervalSince1970: 1_700_000_900)
-    private let capture = CapturedFile(id: UUID(), url: URL(fileURLWithPath: "/tmp/capture.mov"))
+    private let assessmentId = UUID()
+
+    private var capture: CapturedFile {
+        CapturedFile(id: UUID(),
+                     assessmentId: assessmentId,
+                     url: URL(fileURLWithPath: "/tmp/capture.mov"))
+    }
 
     private func draft() -> Assessment {
-        Assessment(id: UUID(),
+        Assessment(id: assessmentId,
                    title: nil,
                    notes: nil,
                    location: "Warehouse 3",
@@ -72,8 +78,7 @@ final class CompareAndSetTests: XCTestCase {
         await repository.onBeforeUpdate { theirs }
 
         let sut = AddEvidence(repository: repository, files: files, now: { later })
-        let result = try await sut.execute(assessmentId: existing.id,
-                                           capturing: capture,
+        let result = try await sut.execute(capturing: capture,
                                            type: .video)
 
         XCTAssertEqual(result.notes, "cracked beam", "the other write survives")
@@ -101,8 +106,7 @@ final class CompareAndSetTests: XCTestCase {
         await repository.onBeforeUpdate { theirs }
 
         let sut = AddEvidence(repository: repository, files: files, now: clock.now)
-        let result = try await sut.execute(assessmentId: existing.id,
-                                           capturing: capture,
+        let result = try await sut.execute(capturing: capture,
                                            type: .video)
 
         XCTAssertEqual(result.updatedAt, retriedAt)

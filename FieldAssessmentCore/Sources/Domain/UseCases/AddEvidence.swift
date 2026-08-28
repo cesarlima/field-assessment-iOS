@@ -25,11 +25,16 @@ public struct AddEvidence: Sendable {
         self.now = now
     }
 
+    /// The assessment is not named separately: it comes from the capture,
+    /// which was taken for one and only one. Handing the same capture to a
+    /// second assessment is what would give two records a row with the same
+    /// evidence id naming the same file, and there is now no way to say it.
     @discardableResult
-    public func execute(assessmentId: UUID,
-                        capturing file: CapturedFile,
+    public func execute(capturing file: CapturedFile,
                         type: EvidenceType,
                         evidenceNotes: String? = nil) async throws -> Assessment {
+        let assessmentId = file.assessmentId
+
         // An id that does not exist is a caller bug rather than a field
         // condition, and failing on it here avoids moving a large file for
         // nothing.
@@ -41,13 +46,13 @@ public struct AddEvidence: Sendable {
         // ran, and report a failure for a photo that is already attached.
         _ = try await repository.fetch(id: assessmentId)
 
-        let filed = try await files.store(file)
+        let fileName = try await files.store(file)
 
         let capturedAt = now()
         let evidence = Evidence(id: file.id,
                                 assessmentId: assessmentId,
                                 type: type,
-                                fileName: filed.name,
+                                fileName: fileName,
                                 notes: normalized(evidenceNotes),
                                 createdAt: capturedAt)
 
@@ -66,18 +71,16 @@ public struct AddEvidence: Sendable {
                 try current.adding(evidence, at: now())
             }
         } catch AssessmentError.alreadyCompleted {
-            // A completed assessment will never take this capture, so nothing
-            // will ever point at the file — unless this call did not put it
-            // there. `store` adopts a file already filed under that id, and
-            // whatever filed it first may already hold a row naming it;
-            // deleting then takes that assessment's photo away.
+            // The capture will never be attached now, and it could only ever
+            // have been attached here — it names its assessment, and `adding`
+            // reached the status guard only after finding this evidence is not
+            // in that assessment's list. So no row anywhere names this file,
+            // and this is the one place deleting media destroys no evidence.
             //
             // Only `alreadyCompleted` is caught. Every other failure leaves
             // the file alone, because after the move it is the only copy of
             // the capture left and the caller can try the same one again.
-            if filed.wasMoved {
-                try? await files.remove(file.id)
-            }
+            try? await files.remove(file.id)
             throw AssessmentError.alreadyCompleted
         }
     }

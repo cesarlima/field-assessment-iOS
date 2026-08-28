@@ -11,10 +11,16 @@ import XCTest
 final class ConcurrentWriteTests: XCTestCase {
     private let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
     private let later = Date(timeIntervalSince1970: 1_700_000_900)
-    private let capture = CapturedFile(id: UUID(), url: URL(fileURLWithPath: "/tmp/capture.mov"))
+    private let assessmentId = UUID()
 
-    private func draft(id: UUID = UUID()) -> Assessment {
-        Assessment(id: id,
+    private var capture: CapturedFile {
+        CapturedFile(id: UUID(),
+                     assessmentId: assessmentId,
+                     url: URL(fileURLWithPath: "/tmp/capture.mov"))
+    }
+
+    private func draft(id: UUID? = nil) -> Assessment {
+        Assessment(id: id ?? assessmentId,
                    title: nil,
                    notes: nil,
                    location: "Warehouse 3",
@@ -39,8 +45,7 @@ final class ConcurrentWriteTests: XCTestCase {
             _ = try? await update.execute(id: existing.id, .notes("cracked beam"))
         }
 
-        let result = try await addEvidence.execute(assessmentId: existing.id,
-                                                   capturing: capture,
+        let result = try await addEvidence.execute(capturing: capture,
                                                    type: .video)
 
         XCTAssertEqual(result.evidences.count, 1, "the capture must be attached")
@@ -74,8 +79,7 @@ final class ConcurrentWriteTests: XCTestCase {
         }
 
         let addEvidence = AddEvidence(repository: repository, files: files, now: { later })
-        _ = try? await addEvidence.execute(assessmentId: existing.id,
-                                           capturing: capture,
+        _ = try? await addEvidence.execute(capturing: capture,
                                            type: .video)
 
         let stored = try? await repository.fetch(id: existing.id)

@@ -379,6 +379,16 @@ again — the launch sweep would then delete it. So the capture path answers
 `alreadyExists` by attaching the evidence to the record that won, which is the
 write `AddEvidence` already makes.
 
+It turned out not to cover the whole text path either. R7 closes the window at
+two moments, and leaving the screen hits both: the blur flush and the
+background flush go out together, and whichever loses the primary key is
+holding the fuller text half the time. "The screen flushes again" assumes a
+next flush, and the app is suspending. So the text path merges what it was
+carrying into the record that won, with `applying`, and `alreadyExists` now
+means the same thing on both paths: fold this input into what is there. A
+field the call says nothing about is left alone — `nil` is "not provided", and
+clearing a field stays an explicit edit on `UpdateAssessment`.
+
 ---
 
 ## 21. Completion ships without its transactional half
@@ -447,6 +457,10 @@ advances in bursts and resumes when the user opens the app.
 
 ## 22. Only the call that filed a capture may delete it
 
+**Superseded by 23, one round later.** It closed one of the two orderings and
+read as though it closed both. What is written below was the reasoning at the
+time; decision 23 says what was wrong with it.
+
 `EvidenceFileStore.store` returns a `StoredFile` carrying the name and whether
 this call moved the file in or adopted one already there. A refusal deletes the
 media only when it moved it.
@@ -477,3 +491,51 @@ enum, and any retryable case added later would have become a silent delete.
 truthfully whether it moved or adopted. A store that always answered "moved"
 would put the bug straight back, so the disk-backed implementation owes a test
 for the adopt path.
+
+---
+
+## 23. A capture names the assessment it was taken for
+
+`CapturedFile` carries an `assessmentId` alongside its own id.
+`AddEvidence.execute` and `CreateAssessment.execute(capturing:)` take the
+assessment from the capture instead of a separate parameter. `StoredFile` and
+its `wasMoved` flag are gone; `store` returns the file name again.
+
+**Why.** Decision 22 stopped an adopting call from deleting a file the mover
+had attached. The mirrored ordering stayed open and was reproduced: B moves the
+file and holds `wasMoved: true`; A adopts it and its write lands, so A now
+names the file; B's commit then reads an assessment completed in the meantime,
+`adding` refuses, and B deletes the file A names. `wasMoved` answers "nothing
+pointed at this when I moved it". The question at the point of deleting is
+"does anything point at it now", and no flag captured earlier can answer that.
+
+The root cause was one level up. `AddEvidence` stamped the evidence with the
+`assessmentId` the caller passed and committed against that same id, so
+`adding`'s `evidenceBelongsToAnotherAssessment` guard could not fire from any
+use case. The same `CapturedFile` handed to two open assessments gave both a
+row with one evidence id naming one file — the thing `docs/domain.md` says
+cannot exist, and the thing that makes deleting either record take the other's
+photo. Decision 22 cited that error as the reason the scenario was "a caller
+bug the domain already names", and the name was unreachable.
+
+Carrying the assessment inside the capture leaves one source for it, which is
+the move `Assessment(capturing:)` already made for the same reason: the two
+cannot disagree if there is only one.
+
+**What follows.** A capture belongs to one assessment, and `adding` reaches its
+status guard only after finding the evidence is not in that assessment's list.
+So a refusal proves no row anywhere names the file, and deleting it needs no
+condition. That also fixed a smaller bug in the opposite direction: the common
+way to reach the refusal is a retry, where the file was already filed, and the
+`wasMoved` gate was skipping exactly the cleanup the branch exists to do.
+
+**Cost.** The public signatures of both capture entry points changed, and
+Presentation now has to know which assessment a capture is for at the moment it
+is taken. That is information the screen already has — it minted the assessment
+id when it opened.
+
+**What is still open.** Two `CapturedFile` values built with the same `id` and
+different `assessmentId`s would put the duplicate row back. The accidental
+route is gone; the deliberate one is not. What closes it durably is a
+uniqueness constraint on the evidence id in Core Data, which lands with the
+repository in Block 1. Recorded here rather than discovered there.
