@@ -10,10 +10,12 @@ on:
 permissions:
   contents: read
 
-# A force-push should not leave two runs racing over the same branch.
+# A force-push should not leave two runs racing over the same branch. On main
+# it is the opposite: two merges inside one run's duration would cancel the
+# first, and that commit would end up neither green nor red, just cancelled.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   domain:
