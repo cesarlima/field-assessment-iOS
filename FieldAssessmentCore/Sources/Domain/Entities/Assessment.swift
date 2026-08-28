@@ -145,8 +145,6 @@ extension Assessment {
     /// Applies several edits as one change. A debounced field can flush
     /// everything the inspector touched in a single write.
     func applying(_ edits: [AssessmentEdit], at now: Date) throws -> Assessment {
-        guard status == .open else { throw AssessmentError.alreadyCompleted }
-
         var title = self.title
         var notes = self.notes
         var location = self.location
@@ -161,11 +159,20 @@ extension Assessment {
             }
         }
 
+        // Whether anything changed is decided before the status is consulted.
+        // An edit that asks for nothing is a repeat, and R6 refuses changes to
+        // a finished record, not repeats of what it already says. R7's blur
+        // flush fires on the same tap that finishes the assessment, carrying
+        // text the debounce already saved: refusing it would report a failure
+        // for a write that would have done nothing. `adding` and `completing`
+        // order it the same way.
         guard title != self.title
                 || notes != self.notes
                 || location != self.location
                 || inspector != self.inspector
         else { return self }
+
+        guard status == .open else { throw AssessmentError.alreadyCompleted }
 
         return Assessment(id: id,
                           version: version + 1,

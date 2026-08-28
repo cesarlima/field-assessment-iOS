@@ -83,6 +83,12 @@ Declaring it finished a second time is not an edit and is not refused — it
 asks for nothing the first one did not already do, so it changes nothing and
 reports the record as it stands.
 
+An edit that asks for nothing is treated the same way. R7 flushes when a field
+is left, and the tap that finishes an assessment is what leaves the field, so a
+write carrying text the debounce had already saved arrives just behind the
+completion. What R6 refuses is a change to a finished record, not a repeat of
+what it already says.
+
 **R7. Work in progress survives a closed app.**
 There is no Save button. Changes persist while the inspector works, not when
 they leave the screen.

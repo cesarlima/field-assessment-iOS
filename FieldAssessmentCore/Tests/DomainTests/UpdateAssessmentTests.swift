@@ -14,11 +14,11 @@ final class UpdateAssessmentTests: XCTestCase {
                    now: createdAt)
     }
 
-    private func completed() -> Assessment {
+    private func completed(notes: String? = nil) -> Assessment {
         Assessment(reconstituting: UUID(),
                    version: 1,
                    title: nil,
-                   notes: nil,
+                   notes: notes,
                    location: "Warehouse 3",
                    createdAt: createdAt,
                    updatedAt: createdAt,
@@ -108,6 +108,23 @@ final class UpdateAssessmentTests: XCTestCase {
         await XCTAssertThrowsErrorAsync(try await sut.execute(id: existing.id, .notes("late change"))) { error in
             XCTAssertEqual(error as? AssessmentError, .alreadyCompleted)
         }
+
+        let writes = await repository.writes
+        XCTAssertEqual(writes, 0)
+    }
+
+    /// R7's own sequence: the tap on Finish resigns the field's focus, so the
+    /// blur flush and the completion both go out. The debounce had already
+    /// saved that exact text, so the flush asks for nothing. A write that
+    /// changes nothing is a repeat, not an edit, and R6 has no reason to
+    /// refuse it — `adding` and `completing` already order it this way.
+    func test_execute_withRedundantEditAfterCompletion_writesNothingAndDoesNotThrow() async throws {
+        let existing = completed(notes: "cracked beam")
+        let (sut, repository) = makeSUT(seed: [existing])
+
+        let result = try await sut.execute(id: existing.id, .notes("cracked beam"))
+
+        XCTAssertEqual(result, existing)
 
         let writes = await repository.writes
         XCTAssertEqual(writes, 0)
