@@ -7,6 +7,49 @@ Build in problem-first order: implement the naive version, feel the failure, the
 engineer the real solution. That sequence is what turns a copied pattern into a
 decision you can defend.
 
+## Where this is
+
+Last updated 2026-08-28.
+
+The domain layer is finished and merged. The app around it has not started:
+there is a workspace and a Swift package, no app target, no Core Data stack, no
+screen, no fake backend. Block 1 is the next thing.
+
+Threads left open on purpose, each recorded where the reasoning lives:
+
+- **Uniqueness constraint on the evidence id.** Decision 23. Two `CapturedFile`
+  values built with the same id and different assessments would put a duplicate
+  row back; no screen does that, and the constraint closes it durably. Lands
+  with the repository in Block 1.
+- **The two `catch` branches in `CreateAssessment`.** Decision 25. They absorb
+  an id that is already taken. Whether they are needed at all is decided by how
+  the draft screen writes, so the question is asked again in Block 1.
+- **`CompleteAssessment` writes only the status.** Decision 21. Hard rule 4 asks
+  for the status change and the operations in one transaction, and there are no
+  operations yet. Closes in Block 2.
+- **Orphan-file sweep at launch.** Decisions 15 and 19. Filing a capture moves
+  the file before the row is written, so a crash in between leaves a file the
+  name identifies and nothing points at. Needs the file store, so Block 3.
+- **Editing what an attached piece of evidence says.** Block 3 below.
+- **Dependency-rule check.** "After, if time allows" below.
+
+## Block 0 — Domain
+
+Done. Merged in pull request #1.
+
+- Entities and the invariants that live on them: `Assessment`, `Evidence`, the
+  status and requirement enums, and the errors they raise
+- Ports the outer layers implement: `AssessmentRepository`, `EvidenceFileStore`
+- Use cases: `CreateAssessment`, `UpdateAssessment`, `AddEvidence`,
+  `CompleteAssessment`
+- Compare-and-set on every write, through one shared `commit` helper
+- 54 tests against in-memory fakes, run in CI on every pull request
+
+This was not one of the four blocks. The blocks describe the app being built;
+this is the layer all of them sit on, and it came first because the rules had to
+be settled before anything could store them. It is recorded here so the roadmap
+matches the repository rather than the plan.
+
 ## Block 1 — Vertical slice
 
 Goal: something that works end to end, however thin.

@@ -30,6 +30,10 @@ public enum CreateAssessmentError: Error, Equatable, Sendable {
 /// An id that is already taken is never an error here. It means another
 /// attempt at this same creation got there first, and what this one was
 /// carrying is merged into the record that won rather than discarded.
+///
+/// Whether that can happen at all depends on how the draft screen writes, and
+/// the screen does not exist yet. Decision 25 states the assumption and says
+/// what would take these two branches back out.
 public struct CreateAssessment: Sendable {
     private let repository: AssessmentRepository
     private let files: EvidenceFileStore
@@ -155,6 +159,10 @@ public struct CreateAssessment: Sendable {
     /// whichever loses the primary key has no next flush to fall back on,
     /// because the app is suspending. What it was carrying would simply be
     /// gone.
+    ///
+    /// That reads as measured and is not: it assumes a screen whose flushes are
+    /// not serialised. A screen that runs them through one actor never reaches
+    /// here at all, and then this branch should go. Decision 25.
     ///
     /// Throws `alreadyCompleted` when the record that won has since been
     /// finished and this call actually asks to change it, which is R6. A flush
