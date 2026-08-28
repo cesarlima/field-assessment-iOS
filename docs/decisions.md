@@ -585,3 +585,60 @@ also means living with cases that are possible in the type system and closed
 only by the flow — if a screen is added later that breaks the assumption, the
 argument has to be walked again. That is why the reachability argument goes in
 the decision log rather than in a reviewer's head.
+
+---
+
+## 25. `CreateAssessment` absorbs an id that is already taken
+
+`AssessmentRepositoryError.alreadyExists` is never surfaced. On the text path
+the fields this call carried are merged into the record that took the id; on the
+capture path the evidence is attached to it. Both go through the same
+compare-and-set commit as every other write.
+
+**What it would take to reach it.** Two calls to `CreateAssessment` carrying the
+same id, in flight at the same time. That needs a draft screen that does not
+serialise its own writes, and no screen exists yet. One that runs its flushes
+through a single actor — holding whether the record was created, sending the
+next flush to `UpdateAssessment` and a capture after a create to `AddEvidence` —
+never produces it. Serialising costs a handful of lines and two local writes in
+sequence, which is microseconds even inside the suspend window.
+
+So by decision 24's own test this is a fix written before the problem, and the
+justification in the code comments — "leaving the screen fires the blur flush
+and the background flush together, and whichever loses has no next flush" —
+assumes an unserialised screen without ever saying so.
+
+**Why it stays anyway.** Two reasons, and only the first carries weight.
+
+The capture path has a side effect that outlives the throw: `store` has already
+moved the file out of temporary storage before `insert` is attempted. If
+`alreadyExists` propagated, the correct recovery would be to call `AddEvidence`
+with the same capture — the recovery for one error is a different function.
+Forgetting it costs a photo. `attach` does it inside, which makes the contract
+one sentence: hand it a capture, and the photo ends up on the record with that
+id. The branch costs a `catch`; the alternative costs an obligation nobody is
+reminded of.
+
+The text path's `merge` has no such asymmetry, and is stated separately so it is
+not mistaken for the argument above. It exists so the two overloads answer the
+same way. Consistency inside one type is worth something, but not much.
+
+**Cost.** Two branches, two private helpers, four tests, and the retry loop
+reached from a path that may never need it. The one that actually bites: a draft
+screen that does not serialise its writes works correctly, so nothing ever
+reveals that it does not. And the type is an upsert wearing the name `Create` —
+the branches are the normal behaviour of an upsert, written inside a `catch` to
+fit a name that promises something narrower. That is why both needed a comment
+explaining themselves.
+
+**What invalidates this, and when to ask.** The draft screen, in Block 1.
+
+- If its writes go through one actor, both `catch` blocks are unreachable and
+  should be deleted, not kept in case. Decision 24 applies to them as much as to
+  anything else.
+- If routing a capture-after-create to `AddEvidence` turns out awkward once the
+  screen is real, the answer is to rename this use case to what it is rather
+  than keep exception handlers inside a name that misleads.
+
+Recorded now so the question gets asked then. Read without this entry, the code
+looks like a settled defence against a race somebody measured.
